@@ -1,0 +1,5 @@
+# group_imports = "StdExternalCrate"
+imports_granularity = "One"
+reorder_impl_items = true
+style_edition = "2024"
+unstable_features = true
