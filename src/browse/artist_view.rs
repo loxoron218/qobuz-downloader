@@ -1,0 +1,1 @@
+//! Artist detail view UI.

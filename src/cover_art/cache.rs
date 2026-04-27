@@ -1,0 +1,1 @@
+//! Cover art texture cache.

@@ -24,8 +24,8 @@
 
 **Purpose**: Project initialization and dependency setup
 
-- [ ] T001 Add all dependencies to Cargo.toml (gtk4, adw, glib, gio, oo7, async-channel, parking_lot, uuid, chrono, serde, serde_json, tracing, tracing-subscriber, thiserror, anyhow, qobuz-api-rust-refactor path dep)
-- [ ] T002 Create module file structure with mod declarations: src/app.rs, src/window.rs, src/errors.rs, src/auth/mod.rs, src/auth/keyring.rs, src/auth/session.rs, src/auth/login_view.rs, src/search/mod.rs, src/search/view.rs, src/search/controller.rs, src/browse/mod.rs, src/browse/album_view.rs, src/browse/artist_view.rs, src/browse/playlist_view.rs, src/download/mod.rs, src/download/manager.rs, src/download/worker.rs, src/download/view.rs, src/download/progress.rs, src/preferences/mod.rs, src/preferences/dialog.rs, src/preferences/settings.rs, src/cover_art/mod.rs, src/cover_art/cache.rs; wire mod declarations in src/main.rs
+- [X] T001 Add all dependencies to Cargo.toml (gtk4, adw, glib, gio, oo7, async-channel, parking_lot, uuid, chrono, serde, serde_json, tracing, tracing-subscriber, thiserror, anyhow, qobuz-api-rust-refactor path dep)
+- [X] T002 Create module file structure with mod declarations: src/app.rs, src/window.rs, src/errors.rs, src/auth/mod.rs, src/auth/keyring.rs, src/auth/session.rs, src/auth/login_view.rs, src/search/mod.rs, src/search/view.rs, src/search/controller.rs, src/browse/mod.rs, src/browse/album_view.rs, src/browse/artist_view.rs, src/browse/playlist_view.rs, src/download/mod.rs, src/download/manager.rs, src/download/worker.rs, src/download/view.rs, src/download/progress.rs, src/preferences/mod.rs, src/preferences/dialog.rs, src/preferences/settings.rs, src/cover_art/mod.rs, src/cover_art/cache.rs; wire mod declarations in src/main.rs
 
 ---
 
@@ -35,12 +35,12 @@
 
 **⚠️ CRITICAL**: No user story work can begin until this phase is complete
 
-- [ ] T003 Implement AppError enum (Api, Keyring, Settings, SettingsParse, Download, NotAuthenticated) with thiserror in src/errors.rs
-- [ ] T004 [P] Implement Quality enum (Mp3_320, Flac16_44, Flac24_96, Flac24_192) with Display, From<Quality> for i32, TryFrom<i32> for Quality in src/download/progress.rs
-- [ ] T005 [P] Implement AppSettings struct with serde serialization, load/save to $XDG_CONFIG_HOME/qobuz-downloader-rs/settings.json in src/preferences/settings.rs
-- [ ] T006 Implement AppState struct with Arc<parking_lot::Mutex<QobuzApiService>>, settings, auth_state fields in src/app.rs
-- [ ] T007 Set up GTK/Adwaita application initialization in src/main.rs: create AdwApplication, connect activate signal, build AppState, run application
-- [ ] T008 Create main window shell in src/window.rs: AdwApplicationWindow with AdwNavigationView, AdwToolbarView with header bar, placeholder content area
+- [X] T003 Implement AppError enum (Api, Keyring, Settings, SettingsParse, Download, NotAuthenticated) with thiserror in src/errors.rs
+- [X] T004 [P] Implement Quality enum (Mp3_320, Flac16_44, Flac24_96, Flac24_192) with Display, From<Quality> for i32, TryFrom<i32> for Quality in src/download/progress.rs
+- [X] T005 [P] Implement AppSettings struct with serde serialization, load/save to $XDG_CONFIG_HOME/qobuz-downloader-rs/settings.json in src/preferences/settings.rs
+- [X] T006 Implement AppState struct with Arc<parking_lot::Mutex<QobuzApiService>>, settings, auth_state fields in src/app.rs
+- [X] T007 Set up GTK/Adwaita application initialization in src/main.rs: create AdwApplication, connect activate signal, build AppState, run application
+- [X] T008 Create main window shell in src/window.rs: AdwApplicationWindow with AdwNavigationView, AdwToolbarView with header bar, placeholder content area
 
 **Checkpoint**: Foundation ready — error types, settings, quality enum, and app shell are in place. User story implementation can now begin in parallel.
 

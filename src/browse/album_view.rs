@@ -1,0 +1,1 @@
+//! Album detail view UI.

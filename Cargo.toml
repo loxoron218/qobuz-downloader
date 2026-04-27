@@ -1,9 +1,21 @@
 [package]
+edition = "2024"
 name = "qobuz-downloader-rs-refactor"
 version = "0.1.0"
-edition = "2024"
 
 [dependencies]
+libadwaita = { version = "0.9.1", features = [
+    "gio_v2_80",
+    "gtk_v4_22",
+    "v1_9",
+] }
+oo7 = "0.6.0"
+parking_lot = "0.12.5"
+qobuz-api-rust-refactor = { path = "/home/arch/Downloads/github/qobuz-api-rust-refactor" }
+serde = { version = "1.0.228", features = ["derive"] }
+serde_json = "1.0.149"
+thiserror = "2.0.18"
+tracing = "0.1.44"
 
 [lints.clippy]
 # missing_asserts_for_indexing = "deny"
