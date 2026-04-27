@@ -54,12 +54,12 @@
 
 ### Implementation for User Story 3
 
-- [ ] T009 [US3] Implement keyring credential store/load/delete using oo7 (attributes: [("application", "qobuz-downloader-rs")]) in src/auth/keyring.rs
-- [ ] T010 [P] [US3] Implement AuthState enum (Unauthenticated, Authenticating, Authenticated { user_id: String }, Expired) and AuthEvent enum (Authenticated, AuthenticationFailed, Reauthenticated, ReauthFailed) in src/auth/session.rs
-- [ ] T011 [US3] Implement session management (login, logout, re-auth including token expiry handling via stored credentials) with gio::spawn_blocking for API calls and glib::MainContext::channel for AuthEvent in src/auth/session.rs
-- [ ] T012 [US3] Implement login view UI in src/auth/login_view.rs: AdwToolbarView with AdwHeaderBar, email EntryRow, password PasswordEntryRow, submit Button with suggested-action CSS, error label, use glib::MainContext::channel to receive AuthEvent
-- [ ] T013 [US3] Wire auth module in src/auth/mod.rs: export keyring, session, login_view; connect login_view submit to session.login, connect AuthEvent to window state transitions
-- [ ] T014 [US3] Update src/window.rs and src/app.rs to show login view when Unauthenticated/Authenticating, transition to main view on Authenticated, check keyring on startup for auto-login
+- [X] T009 [US3] Implement keyring credential store/load/delete using oo7 (attributes: [("application", "qobuz-downloader-rs")]) in src/auth/keyring.rs
+- [X] T010 [P] [US3] Implement AuthState enum (Unauthenticated, Authenticating, Authenticated { user_id: String }, Expired) and AuthEvent enum (Authenticated, AuthenticationFailed, Reauthenticated, ReauthFailed) in src/auth/session.rs
+- [X] T011 [US3] Implement session management (login, logout, re-auth including token expiry handling via stored credentials) with gio::spawn_blocking for API calls and async_channel for AuthEvent in src/auth/session.rs
+- [X] T012 [US3] Implement login view UI in src/auth/login_view.rs: AdwToolbarView with AdwHeaderBar, email EntryRow, password PasswordEntryRow, submit Button with suggested-action CSS, error label, use async_channel to send AuthEvent
+- [X] T013 [US3] Wire auth module in src/auth/mod.rs: export keyring, session, login_view; connect login_view submit to session.login, connect AuthEvent to window state transitions
+- [X] T014 [US3] Update src/window.rs and src/app.rs to show login view when Unauthenticated/Authenticating, transition to main view on Authenticated, check keyring on startup for auto-login
 
 **Checkpoint**: Authentication is fully functional — users can log in, credentials persist in GNOME Keyring, auto-login works on subsequent launches, re-auth handles token expiry.
 
