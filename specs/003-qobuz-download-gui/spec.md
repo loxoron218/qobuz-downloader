@@ -69,6 +69,8 @@ A user wants to download tracks from a playlist. The user searches for a playlis
 
 1. **Given** search results include playlists, **When** the user selects a playlist, **Then** a detail view shows the playlist name, creator, track count, duration, and track listing
 2. **Given** a playlist detail view, **When** the user initiates download, **Then** all tracks download with the same progress feedback as album downloads
+3. **Given** search results include artists, **When** the user selects an artist, **Then** a detail view shows the artist name, image, and album catalog listing
+4. **Given** an artist detail view, **When** the user selects an album, **Then** the album detail view opens with full track listing and download options
 
 ---
 
@@ -113,7 +115,6 @@ A user wants to see what is currently downloading, cancel a download, and view r
 - When a track is not available for download (DRM-restricted or geo-blocked) → Display an error toast indicating the track is unavailable with the reason, and skip to the next track in batch downloads
 - How does the system handle duplicate downloads (same track/album downloaded twice)? → Skip files that already exist in the output directory and display a toast notification to the user (see FR-013b)
 - What happens when the user's authentication token expires mid-session? → Automatically re-authenticate silently using stored oo7 credentials; if re-auth fails, prompt user to log in again (see FR-008a)
-- Interrupted downloads (from app close or network failure) are not resumed; partial files are cleaned up and the download must be restarted manually (see FR-012a)
 
 ## Requirements *(mandatory)*
 
@@ -132,7 +133,7 @@ A user wants to see what is currently downloading, cancel a download, and view r
 - **FR-009a**: The application MUST allow users to browse artist details including name, image, and album catalog listing
 - **FR-010**: The application MUST allow users to configure the download output directory
 - **FR-011**: The application MUST allow users to set a default audio quality for downloads
-- **FR-012**: The application MUST handle download errors gracefully with automatic retry (up to 3 retries with exponential backoff: 2s, 4s, 8s) for transient failures (network timeouts, 5xx responses, rate-limit 429) and clear error messages for permanent failures (4xx responses)
+- **FR-012**: The application MUST handle download errors gracefully with automatic retry (up to 3 retries with exponential backoff: 2s, 4s, 8s) for transient failures (network timeouts, 5xx responses, rate-limit 429) and clear error messages for permanent failures (4xx responses excluding 429)
 - **FR-012a**: Interrupted downloads (app close, network failure) are NOT resumed on restart; partial files are cleaned up and the download must be re-initiated by the user
 - **FR-013**: The application MUST allow users to cancel in-progress downloads
 - **FR-013a**: The application MUST support a maximum of 3 concurrent downloads; additional downloads are queued and started automatically as slots become available
@@ -158,7 +159,7 @@ A user wants to see what is currently downloading, cancel a download, and view r
 - **SC-001**: Users can search, select, and begin downloading a track within 30 seconds of launching the application (with stored credentials)
 - **SC-002**: Search results appear within 3 seconds of submitting a query
 - **SC-003**: All downloaded files contain complete metadata tags and embedded cover art verified by a standard audio player
-- **SC-004**: Album downloads complete with all tracks present in the correct folder structure 100% of the time (assuming no network failures)
+- **SC-004**: Album downloads complete with all tracks present in the correct folder structure when no transient errors exceed the retry limit
 - **SC-005**: The application remains responsive during downloads, allowing the user to continue searching and queuing additional downloads
 - **SC-006**: First-time users can authenticate and complete their first download within 2 minutes
 - **SC-007**: Download progress updates are visible within 1 second of actual progress changes

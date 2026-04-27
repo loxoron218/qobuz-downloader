@@ -75,7 +75,7 @@
 
 - [ ] T015 [US1] Implement SearchEvent enum (Results { query, result: SearchResult }, Error { query, error }) in src/search/controller.rs
 - [ ] T016 [US1] Implement search controller in src/search/controller.rs: accept query, call QobuzApiService::search via gio::spawn_blocking, send SearchEvent via glib::MainContext::channel, discard stale results by comparing query string
-- [ ] T017 [US1] Implement search view UI in src/search/view.rs: AdwToolbarView with search entry in header, GtkListView for results grouped by type (tracks, albums, artists, playlists), show title/artist/duration/thumbnail per item, connect selection to detail navigation
+- [ ] T017 [US1] Implement search view UI in src/search/view.rs: AdwToolbarView with search entry in header, GtkListView for results grouped by type (tracks, albums, artists, playlists), show title/artist/duration/quality indicator (Hi-Res badge for FLAC 24-bit)/thumbnail per item, connect selection to detail navigation
 - [ ] T018 [US1] Wire search module in src/search/mod.rs and integrate search view into src/window.rs NavigationView as the default page
 - [ ] T019 [P] [US1] Implement DownloadTask, DownloadItem (Track/Album/Playlist), DownloadStatus (Queued/Active/Completed/Failed/Cancelled/Skipped), DownloadProgress { bytes_downloaded, total_bytes } types in src/download/progress.rs
 - [ ] T020 [US1] Implement DownloadManager in src/download/manager.rs: async_channel::bounded(16) for DownloadCommand (Enqueue/Cancel/Shutdown), glib::MainContext::channel for DownloadEvent, semaphore with 3 permits for concurrency, task tracking HashMap<Uuid, DownloadTask>
