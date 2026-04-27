@@ -3,7 +3,7 @@
 **Input**: Design documents from `/specs/003-qobuz-download-gui/`
 **Prerequisites**: plan.md, spec.md, research.md, data-model.md, contracts/message-types.md, quickstart.md
 
-**Tests**: Not explicitly requested in the feature specification. No test tasks included.
+**Tests**: Unit tests at bottom of each implementation file per AGENTS.md standards. Integration validation via quickstart.md flow (T045).
 
 **Organization**: Tasks are grouped by user story to enable independent implementation and testing of each story.
 
@@ -36,7 +36,7 @@
 **⚠️ CRITICAL**: No user story work can begin until this phase is complete
 
 - [X] T003 Implement AppError enum (Api, Keyring, Settings, SettingsParse, Download, NotAuthenticated) with thiserror in src/errors.rs
-- [X] T004 [P] Implement Quality enum (Mp3_320, Flac16_44, Flac24_96, Flac24_192) with Display, From<Quality> for i32, TryFrom<i32> for Quality in src/download/progress.rs
+- [X] T004 [P] Implement Quality enum (Mp3_320, Flac16_44, Flac24_96, Flac24_192) with Display, From<Quality> for i32, TryFrom<i32> for Quality in src/download/progress.rs (shared type used across search, browse, and preferences modules)
 - [X] T005 [P] Implement AppSettings struct with serde serialization, load/save to $XDG_CONFIG_HOME/qobuz-downloader-rs/settings.json in src/preferences/settings.rs
 - [X] T006 Implement AppState struct with Arc<parking_lot::Mutex<QobuzApiService>>, settings, auth_state fields in src/app.rs
 - [X] T007 Set up GTK/Adwaita application initialization in src/main.rs: create AdwApplication, connect activate signal, build AppState, run application
@@ -56,7 +56,7 @@
 
 - [ ] T009 [US3] Implement keyring credential store/load/delete using oo7 (attributes: [("application", "qobuz-downloader-rs")]) in src/auth/keyring.rs
 - [ ] T010 [P] [US3] Implement AuthState enum (Unauthenticated, Authenticating, Authenticated { user_id: String }, Expired) and AuthEvent enum (Authenticated, AuthenticationFailed, Reauthenticated, ReauthFailed) in src/auth/session.rs
-- [ ] T011 [US3] Implement session management (login, logout, re-auth) with gio::spawn_blocking for API calls and glib::MainContext::channel for AuthEvent in src/auth/session.rs
+- [ ] T011 [US3] Implement session management (login, logout, re-auth including token expiry handling via stored credentials) with gio::spawn_blocking for API calls and glib::MainContext::channel for AuthEvent in src/auth/session.rs
 - [ ] T012 [US3] Implement login view UI in src/auth/login_view.rs: AdwToolbarView with AdwHeaderBar, email EntryRow, password PasswordEntryRow, submit Button with suggested-action CSS, error label, use glib::MainContext::channel to receive AuthEvent
 - [ ] T013 [US3] Wire auth module in src/auth/mod.rs: export keyring, session, login_view; connect login_view submit to session.login, connect AuthEvent to window state transitions
 - [ ] T014 [US3] Update src/window.rs and src/app.rs to show login view when Unauthenticated/Authenticating, transition to main view on Authenticated, check keyring on startup for auto-login
@@ -79,7 +79,7 @@
 - [ ] T018 [US1] Wire search module in src/search/mod.rs and integrate search view into src/window.rs NavigationView as the default page
 - [ ] T019 [P] [US1] Implement DownloadTask, DownloadItem (Track/Album/Playlist), DownloadStatus (Queued/Active/Completed/Failed/Cancelled/Skipped), DownloadProgress { bytes_downloaded, total_bytes } types in src/download/progress.rs
 - [ ] T020 [US1] Implement DownloadManager in src/download/manager.rs: async_channel::bounded(16) for DownloadCommand (Enqueue/Cancel/Shutdown), glib::MainContext::channel for DownloadEvent, semaphore with 3 permits for concurrency, task tracking HashMap<Uuid, DownloadTask>
-- [ ] T021 [US1] Implement download worker in src/download/worker.rs: process commands from channel, spawn individual downloads via gio::spawn_blocking, report Started/Progress/Completed/Failed/Skipped events, handle file-exists skip with toast notification
+- [ ] T021 [US1] Implement download worker in src/download/worker.rs: process commands from channel, spawn individual downloads via gio::spawn_blocking, report Started/Progress/Completed/Failed/Skipped events, handle file-exists skip with toast notification, retry transient failures (network timeouts, 5xx, 429) with exponential backoff (up to 3 retries, 2s/4s/8s), verify metadata tags and cover art are embedded in downloaded files (FR-005)
 - [ ] T022 [US1] Implement download view UI in src/download/view.rs: active downloads list with per-download progress bar, file name label, quality label, status indicator
 - [ ] T023 [US1] Wire download module in src/download/mod.rs: connect search result track selection to DownloadCommand::Enqueue, connect DownloadEvent to download view updates, integrate download view into src/window.rs
 - [ ] T024 [P] [US1] Implement cover art cache in src/cover_art/cache.rs: HashMap<String, gdk::Texture> with spawn_blocking HTTP fetch, gdk::Texture::from_bytes for GPU-ready textures, on-demand loading for list items and detail views
@@ -100,7 +100,7 @@
 - [ ] T026 [US6] Add cancel button per active download in src/download/view.rs: send DownloadCommand::Cancel on click, update UI to show "Cancelling..." state
 - [ ] T027 [US6] Implement download history tracking in src/download/manager.rs: maintain completed tasks list (Completed/Failed/Skipped states), store completed_at timestamp and file path
 - [ ] T028 [US6] Add download history section to src/download/view.rs: separate active and completed lists, show status icon (success/failed/skipped), file path, completed time
-- [ ] T029 [US6] Implement auto re-authentication on token expiry in src/download/worker.rs: catch authentication errors from API calls, retrieve credentials from keyring, call login, retry original download; send ReauthRequired event if re-auth fails
+- [ ] T029 [US6] Wire auto re-authentication on token expiry: download worker (src/download/worker.rs) catches authentication errors from API calls and delegates to session.reauth in src/auth/session.rs; send ReauthRequired event if re-auth fails (FR-008a)
 
 **Checkpoint**: Download management is fully functional — users can monitor, cancel, and review all downloads with full history.
 
@@ -149,7 +149,7 @@
 ### Implementation for User Story 4
 
 - [ ] T038 [P] [US4] Implement playlist detail view in src/browse/playlist_view.rs: AdwToolbarView with back navigation, playlist name/creator/track count/duration labels, track listing (GtkListView), download playlist button
-- [ ] T039 [P] [US4] Implement artist detail view in src/browse/artist_view.rs: AdwToolbarView with back navigation, artist name/image, album listing from artist catalog
+- [ ] T039 [P] [US4] Implement artist detail view (FR-009a) in src/browse/artist_view.rs: AdwToolbarView with back navigation, artist name/image, album listing from artist catalog
 - [ ] T040 [US4] Add playlist and artist browsing via gio::spawn_blocking in src/browse/mod.rs: send BrowseEvent::Playlist/Artist via glib channel, push views onto NavigationView in src/window.rs
 - [ ] T041 [US4] Add batch playlist download to src/download/manager.rs: enqueue all playlist tracks as individual downloads, same concurrency and progress reporting as album downloads
 
@@ -162,9 +162,9 @@
 **Purpose**: Improvements that affect multiple user stories
 
 - [ ] T042 Add structured tracing with fields throughout all modules (e.g., error tracing in download worker, search timing, auth state transitions)
-- [ ] T043 Handle edge cases across modules: subscription quality mismatch (show error toast), disk space errors (clean up partial files), API rate-limiting (retry with backoff), geo-blocked/DRM content (clear error message)
+- [ ] T043 Handle remaining edge cases across modules: subscription quality mismatch (show error toast with alternative quality), disk space errors (clean up partial files, mark remaining as failed), geo-blocked/DRM content (clear error toast, skip in batch downloads)
 - [ ] T044 Ensure GNOME HIG compliance across all views: 6px spacing scale, mnemonic keyboard navigation, accessible labels via accessible_update_property, tooltip text on interactive elements, suggested-action/destructive-action CSS on buttons
-- [ ] T045 Run full quickstart.md validation: first launch flow, subsequent launch flow, search/download workflow, preferences workflow
+- [ ] T045 Run full quickstart.md validation covering all success criteria: first launch flow (SC-006: first-time auth + download within 2 min), subsequent launch flow, search/download workflow (SC-001: search to download within 30s, SC-002: results within 3s, SC-003: metadata and cover art verification, SC-007: progress updates within 1s), album download (SC-004: all tracks present with correct folder structure), UI responsiveness during downloads (SC-005), preferences workflow
 
 ---
 

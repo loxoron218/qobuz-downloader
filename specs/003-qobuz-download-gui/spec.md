@@ -106,38 +106,39 @@ A user wants to see what is currently downloading, cancel a download, and view r
 
 ### Edge Cases
 
-- What happens when the user's Qobuz subscription does not support a requested quality level?
-- How does the system handle a download that is interrupted by the application being closed?
-- What happens when disk space runs out during a multi-track album download?
-- How does the system behave when the Qobuz API is temporarily unavailable or rate-limited?
-- What happens when a track is not available for download (DRM-restricted or geo-blocked)?
-- How does the system handle duplicate downloads (same track/album downloaded twice)? → Skip files that already exist in the output directory and display a toast notification to the user
-- What happens when the user's authentication token expires mid-session? → Automatically re-authenticate silently using stored GNOME Keyring credentials; if re-auth fails, prompt user to log in again
-- Interrupted downloads (from app close or network failure) are not resumed; partial files are cleaned up and the download must be restarted manually
+- When the user's subscription does not support a requested quality level → Display an error toast indicating the quality is unavailable for their subscription tier, and offer the highest available quality as an alternative
+- When the application is closed during a download → Interrupted downloads are not resumed on restart; partial files are cleaned up and the download must be re-initiated by the user (see FR-012a)
+- When disk space runs out during a multi-track album download → Stop the current download, clean up partial files, display an error toast indicating insufficient disk space, and mark remaining queued tracks as failed
+- When the Qobuz API is temporarily unavailable or rate-limited → Retry with exponential backoff (up to 3 retries, 2s/4s/8s delays); if all retries fail, mark the download as failed with a clear error message
+- When a track is not available for download (DRM-restricted or geo-blocked) → Display an error toast indicating the track is unavailable with the reason, and skip to the next track in batch downloads
+- How does the system handle duplicate downloads (same track/album downloaded twice)? → Skip files that already exist in the output directory and display a toast notification to the user (see FR-013b)
+- What happens when the user's authentication token expires mid-session? → Automatically re-authenticate silently using stored oo7 credentials; if re-auth fails, prompt user to log in again (see FR-008a)
+- Interrupted downloads (from app close or network failure) are not resumed; partial files are cleaned up and the download must be restarted manually (see FR-012a)
 
 ## Requirements *(mandatory)*
 
 ### Functional Requirements
 
-- **FR-001**: The application MUST allow users to search the Qobuz catalog by entering a text query and viewing results categorized by tracks, albums, artists, and playlists
-- **FR-002**: The application MUST display search results with relevant metadata including title, artist name, album name, duration, quality indicators (Hi-Res badge), and cover art thumbnails
+- **FR-001**: The application MUST allow users to search the Qobuz catalog by entering a text query and viewing results categorized by tracks, albums, artists, and playlists (limited to the first page of API results per category)
+- **FR-002**: The application MUST display search results with relevant metadata including title, artist name, album name, duration, quality indicators (Hi-Res badge for FLAC 24-bit), and cover art thumbnails
 - **FR-003**: The application MUST allow users to download individual tracks in a user-selected quality level (MP3 320kbps, FLAC 16/44.1, FLAC 24/96, FLAC 24/192)
 - **FR-004**: The application MUST allow users to download full albums with all tracks, organized into appropriately named folders
-- **FR-005**: The application MUST embed complete metadata tags (title, artist, album, genre, track number, cover art, etc.) into downloaded files
+- **FR-005**: The application MUST embed complete metadata tags (title, artist, album, genre, track number, year, ISRC, cover art) into downloaded files
 - **FR-006**: The application MUST provide real-time download progress indication (per-file and overall for batch downloads)
 - **FR-007**: The application MUST authenticate users against the Qobuz API using email and password credentials
-- **FR-008**: The application MUST securely store authentication credentials for automatic re-login between sessions using GNOME Keyring via libsecret (Secret Service API)
+- **FR-008**: The application MUST securely store authentication credentials for automatic re-login between sessions using GNOME Keyring via oo7 (Secret Service API)
 - **FR-008a**: When the authentication token expires mid-session, the application MUST automatically re-authenticate silently using stored credentials; if re-authentication fails, the user MUST be prompted to re-enter credentials
 - **FR-009**: The application MUST allow users to browse album details including full track listings, release information, and cover art
+- **FR-009a**: The application MUST allow users to browse artist details including name, image, and album catalog listing
 - **FR-010**: The application MUST allow users to configure the download output directory
 - **FR-011**: The application MUST allow users to set a default audio quality for downloads
-- **FR-012**: The application MUST handle download errors gracefully with automatic retry for transient failures and clear error messages for permanent failures
+- **FR-012**: The application MUST handle download errors gracefully with automatic retry (up to 3 retries with exponential backoff: 2s, 4s, 8s) for transient failures (network timeouts, 5xx responses, rate-limit 429) and clear error messages for permanent failures (4xx responses)
 - **FR-012a**: Interrupted downloads (app close, network failure) are NOT resumed on restart; partial files are cleaned up and the download must be re-initiated by the user
 - **FR-013**: The application MUST allow users to cancel in-progress downloads
 - **FR-013a**: The application MUST support a maximum of 3 concurrent downloads; additional downloads are queued and started automatically as slots become available
 - **FR-013b**: The application MUST skip downloads for files that already exist in the output directory and display a toast notification informing the user
 - **FR-014**: The application MUST allow users to download playlists
-- **FR-015**: The application MUST display download history showing completed and failed downloads
+- **FR-015**: The application MUST display download history showing completed and failed downloads (in-memory only, cleared on application restart)
 - **FR-016**: The application MUST use the existing `qobuz-api-rust-refactor` library for all Qobuz API interactions (search, browse, download, authentication)
 - **FR-017**: The application MUST provide a graphical user interface following GNOME Human Interface Guidelines
 
@@ -147,6 +148,7 @@ A user wants to see what is currently downloading, cancel a download, and view r
 - **Download Task**: An active or completed download operation tracking progress, status, file path, quality, and associated track/album metadata
 - **User Preferences**: Configurable settings including download directory, default quality, and stored credentials
 - **Album View**: A detailed presentation of an album's metadata, cover art, track listing, and available quality options
+- **Artist View**: A detailed presentation of an artist's name, image, and album catalog listing
 - **Track**: A single audio recording with associated metadata (title, artist, duration, quality capabilities, ISRC)
 
 ## Success Criteria *(mandatory)*
@@ -165,7 +167,7 @@ A user wants to see what is currently downloading, cancel a download, and view r
 
 ### Session 2026-04-26
 
-- Q: How should Qobuz credentials be stored between sessions? → A: GNOME Keyring via libsecret (Secret Service API)
+- Q: How should Qobuz credentials be stored between sessions? → A: GNOME Keyring via oo7 (Secret Service API)
 - Q: What is the maximum number of concurrent downloads the application should support? → A: 3 concurrent downloads
 - Q: Should downloads that are interrupted (e.g., app closed, network failure) resume on next app launch? → A: No, restart the download (simpler implementation)
 - Q: How should the application handle an expired authentication token mid-session? → A: Auto re-authenticate silently using stored credentials
