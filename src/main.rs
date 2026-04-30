@@ -4,10 +4,12 @@ mod app;
 mod auth;
 mod browse;
 mod cover_art;
+mod dashboard;
 mod download;
 mod errors;
 mod preferences;
 mod search;
+mod ui;
 mod window;
 
 use std::process::exit;
@@ -15,19 +17,19 @@ use std::process::exit;
 use {
     libadwaita::{
         Application,
-        gio::{
-            ApplicationFlags,
-            prelude::{ApplicationExt, ApplicationExtManual},
-        },
-        gtk::prelude::GtkWindowExt,
+        gio::ApplicationFlags,
+        prelude::{ApplicationExt, ApplicationExtManual, GtkWindowExt},
     },
     qobuz_api_rust_refactor::api::service::QobuzApiService,
     tracing::error,
+    tracing_subscriber::fmt::init,
 };
 
 use crate::app::AppState;
 
 fn main() {
+    init();
+
     let app = Application::new(Some("com.qobuz.downloader"), ApplicationFlags::default());
 
     app.connect_activate(|app| {

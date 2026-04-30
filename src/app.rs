@@ -6,6 +6,7 @@ use {parking_lot::Mutex, qobuz_api_rust_refactor::api::service::QobuzApiService}
 
 use crate::{
     auth::session::AuthState,
+    cover_art::cache::CoverArtCache,
     preferences::settings::{AppSettings, load_settings},
 };
 
@@ -18,6 +19,8 @@ pub struct AppState {
     pub settings: Arc<Mutex<AppSettings>>,
     /// Current authentication status.
     pub auth_state: Arc<Mutex<AuthState>>,
+    /// In-memory cover art texture cache.
+    pub cover_art_cache: CoverArtCache,
 }
 
 impl AppState {
@@ -27,6 +30,7 @@ impl AppState {
             api_service: Arc::new(Mutex::new(api_service)),
             settings: Arc::new(Mutex::new(load_settings())),
             auth_state: Arc::new(Mutex::new(AuthState::default())),
+            cover_art_cache: CoverArtCache::new(),
         }
     }
 }

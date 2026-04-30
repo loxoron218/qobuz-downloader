@@ -73,17 +73,17 @@
 
 ### Implementation for User Story 1
 
-- [ ] T015 [US1] Implement SearchEvent enum (Results { query, result: SearchResult }, Error { query, error }) in src/search/controller.rs
-- [ ] T016 [US1] Implement search controller in src/search/controller.rs: accept query, call QobuzApiService::search via gio::spawn_blocking, send SearchEvent via glib::MainContext::channel, discard stale results by comparing query string
-- [ ] T017 [US1] Implement search view UI in src/search/view.rs: AdwToolbarView with search entry in header, GtkListView for results grouped by type (tracks, albums, artists, playlists), show title/artist/duration/quality indicator (Hi-Res badge for FLAC 24-bit)/thumbnail per item, connect selection to detail navigation
-- [ ] T018 [US1] Wire search module in src/search/mod.rs and integrate search view into src/window.rs NavigationView as the default page
-- [ ] T019 [P] [US1] Implement DownloadTask, DownloadItem (Track/Album/Playlist), DownloadStatus (Queued/Active/Completed/Failed/Cancelled/Skipped), DownloadProgress { bytes_downloaded, total_bytes } types in src/download/progress.rs
-- [ ] T020 [US1] Implement DownloadManager in src/download/manager.rs: async_channel::bounded(16) for DownloadCommand (Enqueue/Cancel/Shutdown), glib::MainContext::channel for DownloadEvent, semaphore with 3 permits for concurrency, task tracking HashMap<Uuid, DownloadTask>
-- [ ] T021 [US1] Implement download worker in src/download/worker.rs: process commands from channel, spawn individual downloads via gio::spawn_blocking, report Started/Progress/Completed/Failed/Skipped events, handle file-exists skip with toast notification, retry transient failures (network timeouts, 5xx, 429) with exponential backoff (up to 3 retries, 2s/4s/8s), verify metadata tags and cover art are embedded in downloaded files (FR-005)
-- [ ] T022 [US1] Implement download view UI in src/download/view.rs: active downloads list with per-download progress bar, file name label, quality label, status indicator
-- [ ] T023 [US1] Wire download module in src/download/mod.rs: connect search result track selection to DownloadCommand::Enqueue, connect DownloadEvent to download view updates, integrate download view into src/window.rs
-- [ ] T024 [P] [US1] Implement cover art cache in src/cover_art/cache.rs: HashMap<String, gdk::Texture> with spawn_blocking HTTP fetch, gdk::Texture::from_bytes for GPU-ready textures, on-demand loading for list items and detail views
-- [ ] T025 [US1] Wire cover art module in src/cover_art/mod.rs and integrate texture loading into search view result items in src/search/view.rs
+- [X] T015 [US1] Implement SearchEvent enum (Results { query, result: SearchResult }, Error { query, error }) in src/search/controller.rs
+- [X] T016 [US1] Implement search controller in src/search/controller.rs: accept query, call QobuzApiService::search via gio::spawn_blocking, send SearchEvent via glib::MainContext::channel, discard stale results by comparing query string
+- [X] T017 [US1] Implement search view UI in src/search/view.rs: AdwToolbarView with search entry in header, GtkListView for results grouped by type (tracks, albums, artists, playlists), show title/artist/duration/quality indicator (Hi-Res badge for FLAC 24-bit)/thumbnail per item, connect selection to detail navigation
+- [X] T018 [US1] Wire search module in src/search/mod.rs and integrate search view into src/window.rs NavigationView as the default page
+- [X] T019 [P] [US1] Implement DownloadTask, DownloadItem (Track/Album/Playlist), DownloadStatus (Queued/Active/Completed/Failed/Cancelled/Skipped), DownloadProgress { bytes_downloaded, total_bytes } types in src/download/progress.rs
+- [X] T020 [US1] Implement DownloadManager in src/download/manager.rs: async_channel::bounded(16) for DownloadCommand (Enqueue/Cancel/Shutdown), glib::MainContext::channel for DownloadEvent, semaphore with 3 permits for concurrency, task tracking HashMap<Uuid, DownloadTask>
+- [X] T021 [US1] Implement download worker in src/download/worker.rs: process commands from channel, spawn individual downloads via gio::spawn_blocking, report Started/Progress/Completed/Failed/Skipped events, handle file-exists skip with toast notification, retry transient failures (network timeouts, 5xx, 429) with exponential backoff (up to 3 retries, 2s/4s/8s), verify metadata tags and cover art are embedded in downloaded files (FR-005)
+- [X] T022 [US1] Implement download view UI in src/download/view.rs: active downloads list with per-download progress bar, file name label, quality label, status indicator
+- [X] T023 [US1] Wire download module in src/download/mod.rs: connect search result track selection to DownloadCommand::Enqueue, connect DownloadEvent to download view updates, integrate download view into src/window.rs
+- [X] T024 [P] [US1] Implement cover art cache in src/cover_art/cache.rs: HashMap<String, gdk::Texture> with spawn_blocking HTTP fetch, gdk::Texture::from_bytes for GPU-ready textures, on-demand loading for list items and detail views
+- [X] T025 [US1] Wire cover art module in src/cover_art/mod.rs and integrate texture loading into search view result items in src/search/view.rs
 
 **Checkpoint**: Search and single-track download is fully functional — this is the MVP. Users can search, browse results, download a track, and see progress. The application delivers standalone value.
 
@@ -97,10 +97,10 @@
 
 ### Implementation for User Story 6
 
-- [ ] T026 [US6] Add cancel button per active download in src/download/view.rs: send DownloadCommand::Cancel on click, update UI to show "Cancelling..." state
-- [ ] T027 [US6] Implement download history tracking in src/download/manager.rs: maintain completed tasks list (Completed/Failed/Skipped states), store completed_at timestamp and file path
-- [ ] T028 [US6] Add download history section to src/download/view.rs: separate active and completed lists, show status icon (success/failed/skipped), file path, completed time
-- [ ] T029 [US6] Wire auto re-authentication on token expiry: download worker (src/download/worker.rs) catches authentication errors from API calls and delegates to session.reauth in src/auth/session.rs; send ReauthRequired event if re-auth fails (FR-008a)
+- [X] T026 [US6] Add cancel button per active download in src/download/view.rs: send DownloadCommand::Cancel on click, update UI to show "Cancelling..." state
+- [X] T027 [US6] Implement download history tracking in src/download/manager.rs: maintain completed tasks list (Completed/Failed/Skipped states), store completed_at timestamp and file path
+- [X] T028 [US6] Add download history section to src/download/view.rs: separate active and completed lists, show status icon (success/failed/skipped), file path, completed time
+- [X] T029 [US6] Wire auto re-authentication on token expiry: download worker (src/download/worker.rs) catches authentication errors from API calls and delegates to session.reauth in src/auth/session.rs; send ReauthRequired event if re-auth fails (FR-008a)
 
 **Checkpoint**: Download management is fully functional — users can monitor, cancel, and review all downloads with full history.
 

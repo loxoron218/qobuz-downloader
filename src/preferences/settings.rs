@@ -25,6 +25,8 @@ pub struct AppSettings {
     pub window_width: i32,
     /// Saved window height.
     pub window_height: i32,
+    /// Saved search scope (0=All, 1=Albums, 2=Tracks, 3=Artists, 4=Playlists).
+    pub search_scope: u32,
 }
 
 impl Default for AppSettings {
@@ -34,6 +36,7 @@ impl Default for AppSettings {
             default_quality: Quality::default(),
             window_width: 800,
             window_height: 600,
+            search_scope: 0,
         }
     }
 }

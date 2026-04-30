@@ -5,11 +5,11 @@ use std::sync::Arc;
 use {
     async_channel::{Receiver, Sender, unbounded},
     libadwaita::{
-        Application, ApplicationWindow, HeaderBar, NavigationPage, NavigationView, ToolbarView,
+        Application, ApplicationWindow, NavigationPage, NavigationView, ToolbarView,
         gio::spawn_blocking,
-        glib::{MainContext, Propagation::Proceed, clone},
-        gtk::Label,
-        prelude::{AdwApplicationWindowExt, GtkWindowExt, WidgetExt},
+        glib::{MainContext, Propagation::Proceed},
+        gtk::{Box as GtkBox, Button},
+        prelude::{AdwApplicationWindowExt, AdwDialogExt, ButtonExt, GtkWindowExt, WidgetExt},
     },
     tracing::{error, info, warn},
 };
@@ -19,17 +19,29 @@ use crate::{
     auth::{
         login_view::{
             LoginMethod::{EmailPassword, Token},
-            LoginWidgets, build, current_method,
+            LoginWidgets, build as build_login, current_method,
         },
         session::{
-            AuthEvent::{self, Authenticated, AuthenticationFailed, Reauthenticated},
+            AuthEvent::{self, Authenticated, AuthenticationFailed, ReauthFailed, Reauthenticated},
             AuthState::{Authenticated as StateAuthenticated, Authenticating, Unauthenticated},
             perform_keyring_login,
         },
     },
-    preferences::settings::save_settings,
-    window::AuthEvent::ReauthFailed,
+    dashboard,
+    download::manager::DownloadManager,
+    preferences::{
+        dialog,
+        settings::{AppSettings, save_settings},
+    },
+    search::view as search_view,
 };
+
+/// Saves settings and logs any error.
+fn log_save_settings_error(settings: &AppSettings) {
+    if let Err(err) = save_settings(settings) {
+        error!(error = %err, "Failed to save settings");
+    }
+}
 
 /// Builds and returns the main application window.
 pub fn build_window(app: &Application, state: &AppState) -> ApplicationWindow {
@@ -46,42 +58,92 @@ pub fn build_window(app: &Application, state: &AppState) -> ApplicationWindow {
 
     let (auth_sender, auth_receiver) = unbounded::<AuthEvent>();
 
-    let nav_view = NavigationView::new();
-    let main_placeholder = Label::new(Some("Qobuz Downloader"));
-    let main_page = NavigationPage::new(&main_placeholder, "Qobuz Downloader");
-    nav_view.push(&main_page);
+    let download_manager = DownloadManager::new(Arc::clone(&state.api_service));
 
-    let login_widgets = build(state, auth_sender.clone());
+    let nav_view = NavigationView::new();
+
+    let dashboard_widgets = dashboard::build(
+        state,
+        download_manager.cmd_sender(),
+        download_manager.evt_receiver(),
+        &download_manager.tasks_handle(),
+    );
+    let dashboard_page = NavigationPage::new(&dashboard_widgets.root, "Dashboard");
+
+    nav_view.add(&dashboard_page);
+
+    let search_widgets = search_view::build(state, download_manager.cmd_sender());
+    search_widgets.setup_esc_navigation(&nav_view);
+    let search_page = NavigationPage::new(&search_widgets.root, "Search");
+
+    let login_widgets = build_login(state, auth_sender.clone());
 
     let toolbar = ToolbarView::new();
-    toolbar.add_top_bar(&HeaderBar::new());
     toolbar.set_content(Some(&login_widgets.root));
-    window.set_content(Some(&toolbar));
+
+    {
+        let search_button = Button::builder()
+            .icon_name("system-search-symbolic")
+            .tooltip_text("Search")
+            .build();
+
+        let settings_button = Button::builder()
+            .icon_name("emblem-system-symbolic")
+            .tooltip_text("Settings")
+            .build();
+
+        dashboard_widgets.header.pack_end(&settings_button);
+        dashboard_widgets.header.pack_end(&search_button);
+
+        let nav = nav_view.clone();
+        let sp = search_page;
+        search_button.connect_clicked(move |_| {
+            nav.push(&sp);
+        });
+
+        let state_for_dialog = state.clone();
+        let window_for_dialog = window.clone();
+        let toolbar_for_logout = toolbar.clone();
+        let login_root_for_logout = login_widgets.root.clone();
+        settings_button.connect_clicked(move |_| {
+            let on_logout = make_logout_callback(&toolbar_for_logout, &login_root_for_logout);
+            let dialog = dialog::build(&state_for_dialog, on_logout);
+            dialog.present(Some(&window_for_dialog));
+        });
+    }
 
     {
         let mut auth_state = state.auth_state.lock();
         *auth_state = Authenticating;
     }
 
-    setup_auth_receiver(state, &toolbar, &nav_view, &login_widgets, auth_receiver);
+    setup_auth_receiver(
+        state,
+        &toolbar,
+        &nav_view,
+        &dashboard_page,
+        &login_widgets,
+        auth_receiver,
+    );
+
+    download_manager.start_worker();
 
     attempt_keyring_login(state, &auth_sender);
 
-    window.connect_close_request(clone!(
-        #[strong]
-        state,
-        move |win| {
-            let mut settings = state.settings.lock();
+    {
+        let state_close = state.clone();
+        window.connect_close_request(move |win| {
+            let mut settings = state_close.settings.lock();
             settings.window_width = win.width();
             settings.window_height = win.height();
             drop(settings);
-            let settings = state.settings.lock();
-            if let Err(err) = save_settings(&settings) {
-                error!(error = %err, "Failed to save settings");
-            }
+            let settings = state_close.settings.lock();
+            log_save_settings_error(&settings);
             Proceed
-        }
-    ));
+        });
+    }
+
+    window.set_content(Some(&toolbar));
 
     window
 }
@@ -91,17 +153,26 @@ fn setup_auth_receiver(
     state: &AppState,
     toolbar: &ToolbarView,
     nav_view: &NavigationView,
+    dashboard_page: &NavigationPage,
     login_widgets: &LoginWidgets,
     receiver: Receiver<AuthEvent>,
 ) {
     let toolbar = toolbar.clone();
     let nav_view = nav_view.clone();
+    let dashboard_page = dashboard_page.clone();
     let state = state.clone();
     let login_widgets = login_widgets.clone();
 
     MainContext::default().spawn_local(async move {
         while let Ok(event) = receiver.recv().await {
-            handle_auth_event(&event, &state, &toolbar, &nav_view, &login_widgets);
+            handle_auth_event(
+                &event,
+                &state,
+                &toolbar,
+                &nav_view,
+                &dashboard_page,
+                &login_widgets,
+            );
         }
     });
 }
@@ -112,6 +183,7 @@ fn handle_auth_event(
     state: &AppState,
     toolbar: &ToolbarView,
     nav_view: &NavigationView,
+    _dashboard_page: &NavigationPage,
     login_widgets: &LoginWidgets,
 ) {
     match event {
@@ -123,6 +195,7 @@ fn handle_auth_event(
                     user_id: user_id.clone(),
                 };
             }
+
             toolbar.set_content(Some(nav_view));
         }
         AuthenticationFailed { error: err_msg } => {
@@ -191,4 +264,13 @@ fn attempt_keyring_login(state: &AppState, sender: &Sender<AuthEvent>) {
             warn!(error = %err, "Failed to send auth event, receiver likely dropped");
         }
     });
+}
+
+/// Creates a logout callback that switches the toolbar content back to the login view.
+fn make_logout_callback(toolbar: &ToolbarView, login_root: &GtkBox) -> Box<dyn Fn() + 'static> {
+    let toolbar = toolbar.clone();
+    let login_root = login_root.clone();
+    Box::new(move || {
+        toolbar.set_content(Some(&login_root));
+    })
 }
