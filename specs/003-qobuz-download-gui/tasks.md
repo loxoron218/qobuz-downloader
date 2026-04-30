@@ -165,6 +165,8 @@
 - [ ] T043 Handle remaining edge cases across modules: subscription quality mismatch (show error toast with alternative quality), disk space errors (clean up partial files, mark remaining as failed), geo-blocked/DRM content (clear error toast, skip in batch downloads)
 - [ ] T044 Ensure GNOME HIG compliance across all views: 6px spacing scale, mnemonic keyboard navigation, accessible labels via accessible_update_property, tooltip text on interactive elements, suggested-action/destructive-action CSS on buttons
 - [ ] T045 Run full quickstart.md validation covering all success criteria: first launch flow (SC-006: first-time auth + download within 2 min), subsequent launch flow, search/download workflow (SC-001: search to download within 30s, SC-002: results within 3s, SC-003: metadata and cover art verification, SC-007: progress updates within 1s), album download (SC-004: all tracks present with correct folder structure), UI responsiveness during downloads (SC-005), preferences workflow
+- [ ] T046 Save and restore window geometry (width, height) via AppSettings (window_width/window_height fields): save on window close event, restore on window creation in src/window.rs
+- [ ] T047 Register signal handlers (SIGTERM, SIGINT) via gio::unix_signal_add or similar: cancel all active downloads, clean up partial files, then exit cleanly. On next startup, scan output directory for orphaned `.part` files and remove them.
 
 ---
 

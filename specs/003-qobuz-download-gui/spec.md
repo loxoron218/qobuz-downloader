@@ -120,12 +120,12 @@ A user wants to see what is currently downloading, cancel a download, and view r
 
 ### Functional Requirements
 
-- **FR-001**: The application MUST allow users to search the Qobuz catalog by entering a text query and viewing results categorized by tracks, albums, artists, and playlists (limited to the first page of API results per category)
+- **FR-001**: The application MUST allow users to search the Qobuz catalog by entering a text query and viewing results categorized by tracks, albums, artists, and playlists (limited to the first page of API results per category, default 25 items per category)
 - **FR-002**: The application MUST display search results with relevant metadata including title, artist name, album name, duration, quality indicators (Hi-Res badge for FLAC 24-bit), and cover art thumbnails
-- **FR-003**: The application MUST allow users to download individual tracks in a user-selected quality level (MP3 320kbps, FLAC 16/44.1, FLAC 24/96, FLAC 24/192)
-- **FR-004**: The application MUST allow users to download full albums with all tracks, organized into appropriately named folders
+- **FR-003**: The application MUST allow users to download individual tracks in a user-selected quality level (MP3 320kbps, FLAC 16/44.1, FLAC 24/96, FLAC 24/192). For batch downloads (albums, playlists), all tracks use the same selected quality level.
+- **FR-004**: The application MUST allow users to download full albums with all tracks, organized into folders named "Artist - Album Title" with tracks named "TrackNumber - Title.ext" (see US2 Acceptance Scenario #3)
 - **FR-005**: The application MUST embed complete metadata tags (title, artist, album, genre, track number, year, ISRC, cover art) into downloaded files
-- **FR-006**: The application MUST provide real-time download progress indication (per-file and overall for batch downloads)
+- **FR-006**: The application MUST provide download progress indication with updates within 1 second (SC-007), per-file and overall for batch downloads
 - **FR-007**: The application MUST authenticate users against the Qobuz API using email and password credentials
 - **FR-008**: The application MUST securely store authentication credentials for automatic re-login between sessions using GNOME Keyring via oo7 (Secret Service API)
 - **FR-008a**: When the authentication token expires mid-session, the application MUST automatically re-authenticate silently using stored credentials; if re-authentication fails, the user MUST be prompted to re-enter credentials
@@ -133,17 +133,19 @@ A user wants to see what is currently downloading, cancel a download, and view r
 - **FR-009a**: The application MUST allow users to browse artist details including name, image, and album catalog listing
 - **FR-010**: The application MUST allow users to configure the download output directory
 - **FR-011**: The application MUST allow users to set a default audio quality for downloads
-- **FR-012**: The application MUST handle download errors gracefully with automatic retry (up to 3 retries with exponential backoff: 2s, 4s, 8s) for transient failures (network timeouts, 5xx responses, rate-limit 429) and clear error messages for permanent failures (4xx responses excluding 429)
+- **FR-012**: The application MUST handle download errors with automatic retry (up to 3 retries with exponential backoff: 2s, 4s, 8s) for transient failures (network timeouts, 5xx responses, rate-limit 429) and clear error messages for permanent failures (4xx responses excluding 429)
 - **FR-012a**: Interrupted downloads (app close, network failure) are NOT resumed on restart; partial files are cleaned up and the download must be re-initiated by the user
 - **FR-013**: The application MUST allow users to cancel in-progress downloads
 - **FR-013a**: The application MUST support a maximum of 3 concurrent downloads; additional downloads are queued and started automatically as slots become available
 - **FR-013b**: The application MUST skip downloads for files that already exist in the output directory and display a toast notification informing the user
 - **FR-014**: The application MUST allow users to download playlists
-- **FR-015**: The application MUST display download history showing completed and failed downloads (in-memory only, cleared on application restart)
+- **FR-015**: The application MUST display download history showing completed and failed downloads (in-memory only, cleared on application restart, capped at 100 entries with FIFO eviction)
 - **FR-016**: The application MUST use the existing `qobuz-api-rust-refactor` library for all Qobuz API interactions (search, browse, download, authentication)
 - **FR-017**: The application MUST provide a graphical user interface following GNOME Human Interface Guidelines
 
 ### Key Entities
+
+*See [data-model.md](./data-model.md) for formal type definitions.*
 
 - **Search Result**: A collection of tracks, albums, artists, and playlists matching a user query, each with metadata and artwork
 - **Download Task**: An active or completed download operation tracking progress, status, file path, quality, and associated track/album metadata

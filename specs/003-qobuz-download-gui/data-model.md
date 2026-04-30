@@ -160,8 +160,22 @@ Application-level error type (thiserror).
 | `Keyring` | `oo7::Error` | Keyring access error |
 | `Settings` | `std::io::Error` | Settings file I/O error |
 | `SettingsParse` | `serde_json::Error` | Settings JSON parse error |
-| `Download` | `String` | Download-specific errors |
+| `Download` | `DownloadError` | Download-specific errors (see below) |
 | `NotAuthenticated` | - | Operation requires authentication |
+
+### `DownloadError`
+
+Structured download error type.
+
+| Variant | Purpose |
+|---------|---------|
+| `NetworkTimeout` | Connection timed out |
+| `ServerError(u16)` | Server returned 5xx status |
+| `RateLimited` | API rate limit (429) hit after retries exhausted |
+| `DiskFull` | Insufficient disk space |
+| `NotAvailable(&str)` | Track DRM-restricted or geo-blocked with reason |
+| `SubscriptionQualityMismatch` | Quality not available on subscription tier |
+| `Io(String)` | Other I/O errors |
 
 ### `DownloadCommand`
 
@@ -185,6 +199,15 @@ Events sent from download worker to GUI.
 | `Failed` | `id: Uuid`, `error: String` | Download failed |
 | `Skipped` | `id: Uuid`, `reason: String` | Skipped (file exists) |
 | `ReauthRequired` | - | Authentication expired, re-auth needed |
+
+## Module-Local Event Types
+
+These types are defined per-module and not shared across the full data model:
+
+| Type | Module | Definition Location |
+|------|--------|-------------------|
+| `SearchEvent` | Search | `src/search/controller.rs` — T015 |
+| `BrowseEvent` | Browse | `src/browse/mod.rs` — T030 |
 
 ## External Types (from qobuz-api-rust-refactor)
 
