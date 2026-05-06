@@ -10,7 +10,7 @@ use {
     async_channel::{Receiver, Sender},
     chrono::Local,
     libadwaita::{
-        HeaderBar, PreferencesGroup, StatusPage, ToolbarView,
+        PreferencesGroup, StatusPage,
         gio::{ListStore, spawn_blocking},
         glib::{BoxedAnyObject, Bytes, MainContext, Object},
         gtk::{
@@ -36,40 +36,22 @@ use {
 
 use crate::download::progress::{
     DownloadCommand::{self, Cancel},
-    DownloadEvent::{self, Completed, Failed, Progress, ReauthRequired, Skipped, Started},
+    DownloadEvent::{self, Completed, Failed, Started},
     DownloadRowData,
     DownloadStatus::{
         Active, Cancelled, Completed as StatusCompleted, Failed as ItemFailed, Queued,
-        Skipped as StatusSkipped,
     },
     DownloadTask, cancel_all_tasks,
 };
 
-use crate::ui::{build_content_clamp, wrap_clamp_in_scrolled};
-
 /// Shared mapping from list-item address to the bound task ID for cancel buttons.
 type CancelCellMap = HashMap<usize, Rc<RefCell<Option<Uuid>>>>;
-
-/// Widgets from the download view.
-#[derive(Clone)]
-pub struct DownloadWidgets {
-    /// Root container widget.
-    pub root: ToolbarView,
-    /// Stack that switches between empty state and content.
-    stack: Stack,
-    /// `ListStore` model for the download queue.
-    model: ListStore,
-}
 
 /// Widgets for the embedded download queue section (no `ToolbarView` wrapping).
 #[derive(Clone)]
 pub struct QueueSection {
     /// The preferences group containing the queue header and stack.
     pub group: PreferencesGroup,
-    /// Stack that switches between empty state and content.
-    pub stack: Stack,
-    /// `ListStore` model for the download queue.
-    pub model: ListStore,
 }
 
 /// Runs the event-processing loop for download events.
@@ -170,8 +152,8 @@ pub fn build_queue_section(
     }
 
     {
-        let model = model.clone();
-        let stack = stack.clone();
+        let model = model;
+        let stack = stack;
         let tasks_owned = Arc::clone(tasks);
 
         setup_cancel_all(
@@ -186,38 +168,6 @@ pub fn build_queue_section(
 
     QueueSection {
         group: download_queue_group,
-        stack,
-        model,
-    }
-}
-
-/// Builds the download view UI and returns the root widget.
-pub fn build(
-    evt_receiver: Receiver<DownloadEvent>,
-    cmd_sender: Sender<DownloadCommand>,
-    tasks: &Arc<Mutex<HashMap<Uuid, DownloadTask>>>,
-) -> DownloadWidgets {
-    let title_label = Label::new(Some("Downloads"));
-
-    let toolbar = ToolbarView::new();
-    let header = HeaderBar::new();
-    header.set_title_widget(Some(&title_label));
-    toolbar.add_top_bar(&header);
-
-    let section = build_queue_section(evt_receiver, cmd_sender, tasks);
-
-    let (main_clamp, main_box) = build_content_clamp();
-
-    main_box.append(&section.group);
-    main_clamp.set_child(Some(&main_box));
-
-    let inner_scrolled = wrap_clamp_in_scrolled(&main_clamp);
-    toolbar.set_content(Some(&inner_scrolled));
-
-    DownloadWidgets {
-        root: toolbar,
-        stack: section.stack,
-        model: section.model,
     }
 }
 
@@ -475,7 +425,6 @@ fn update_status_label(label: &Label, task: &DownloadTask) {
         StatusCompleted => label.set_label("Completed"),
         Cancelled => label.set_label("Cancelled"),
         ItemFailed => label.set_label("Failed"),
-        StatusSkipped => label.set_label("Skipped"),
     }
 }
 
@@ -605,21 +554,6 @@ fn handle_event(
                 stack.set_visible_child_name("content");
             }
         }
-        Progress {
-            id,
-            bytes_downloaded,
-            total_bytes,
-        } => {
-            let mut map = tasks.lock();
-            if let Some(task) = map.get_mut(id) {
-                task.progress.bytes_downloaded = *bytes_downloaded;
-                task.progress.total_bytes = *total_bytes;
-                task.status = Active;
-            }
-            drop(map);
-
-            refresh_model_item(model, id, tasks);
-        }
         Completed { id, .. } => {
             let mut map = tasks.lock();
             if let Some(task) = map.get_mut(id) {
@@ -638,16 +572,6 @@ fn handle_event(
             drop(map);
             refresh_model_item(model, id, tasks);
         }
-        Skipped { id, .. } => {
-            let mut map = tasks.lock();
-            if let Some(task) = map.get_mut(id) {
-                task.status = StatusSkipped;
-                task.completed_at = Some(Local::now());
-            }
-            drop(map);
-            refresh_model_item(model, id, tasks);
-        }
-        ReauthRequired => {}
     }
 }
 

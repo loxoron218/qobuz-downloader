@@ -42,33 +42,11 @@ pub enum DownloadEvent {
     Completed {
         /// Task ID.
         id: Uuid,
-        /// File path of the completed download.
-        path: PathBuf,
     },
     /// Download failed permanently.
     Failed {
         /// Task ID.
         id: Uuid,
-        /// Error description.
-        error: String,
-    },
-    /// Progress update for an active download.
-    Progress {
-        /// Task ID.
-        id: Uuid,
-        /// Bytes downloaded so far.
-        bytes_downloaded: u64,
-        /// Total file size if known.
-        total_bytes: Option<u64>,
-    },
-    /// Authentication token expired during download.
-    ReauthRequired,
-    /// Download skipped because the file already exists.
-    Skipped {
-        /// Task ID.
-        id: Uuid,
-        /// File path that already existed.
-        path: PathBuf,
     },
     /// Download has started (a slot was available).
     Started {
@@ -102,8 +80,6 @@ pub enum DownloadItem {
     },
     /// Playlist download.
     Playlist {
-        /// Playlist ID.
-        playlist_id: String,
         /// Playlist name for display.
         title: String,
         /// Cover art URL.
@@ -194,8 +170,6 @@ pub enum DownloadStatus {
     /// Waiting for a download slot.
     #[default]
     Queued,
-    /// File already exists.
-    Skipped,
 }
 
 /// Represents a single download operation.
@@ -203,8 +177,6 @@ pub enum DownloadStatus {
 pub struct DownloadTask {
     /// Completion time.
     pub completed_at: Option<DateTime<Local>>,
-    /// Task creation time.
-    pub created_at: DateTime<Local>,
     /// Unique task identifier.
     pub id: Uuid,
     /// What to download.
@@ -229,7 +201,6 @@ impl DownloadTask {
             output_dir,
             status: DownloadStatus::Queued,
             progress: DownloadProgress::default(),
-            created_at: Local::now(),
             completed_at: None,
         }
     }

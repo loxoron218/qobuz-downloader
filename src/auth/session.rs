@@ -5,7 +5,7 @@ use std::sync::Arc;
 use {
     keyring::{
         StoredCredentials::{self, EmailPassword, Token},
-        delete, load, store,
+        load, store,
     },
     parking_lot::Mutex,
     qobuz_api_rust_refactor::api::service::QobuzApiService,
@@ -30,13 +30,6 @@ pub enum AuthEvent {
         /// Error description.
         error: String,
     },
-    /// Silent re-authentication succeeded.
-    Reauthenticated,
-    /// Silent re-authentication failed; user must log in again.
-    ReauthFailed {
-        /// Error description.
-        error: String,
-    },
 }
 
 /// Tracks the current authentication status.
@@ -52,8 +45,6 @@ pub enum AuthState {
         /// The authenticated user's ID.
         user_id: String,
     },
-    /// Token expired, attempting re-auth.
-    Expired,
 }
 
 /// Performs login with email and password, storing credentials in the keyring.
@@ -145,40 +136,6 @@ pub fn perform_keyring_login(
     let user_id = authenticate_with_credentials(api_service, &creds)?;
     info!(user_id, "Keyring login successful");
     Ok(user_id)
-}
-
-/// Performs re-authentication using stored keyring credentials.
-///
-/// This function is designed to be called from `gio::spawn_blocking` when a token expiry is
-/// detected during an API call.
-///
-/// # Arguments
-///
-/// * `api_service` - Shared API service to re-authenticate
-///
-/// # Returns
-///
-/// The authenticated user ID on success.
-///
-/// # Errors
-///
-/// Returns `AppError` if no credentials are stored or re-auth fails.
-pub fn perform_reauth(api_service: &Arc<Mutex<QobuzApiService>>) -> Result<String, AppError> {
-    let creds = load()?.ok_or(NotAuthenticated)?;
-    let user_id = authenticate_with_credentials(api_service, &creds)?;
-    info!(user_id, "Re-authentication successful");
-    Ok(user_id)
-}
-
-/// Deletes stored credentials from the keyring.
-///
-/// # Errors
-///
-/// Returns `AppError` if keyring deletion fails.
-pub fn perform_logout() -> Result<(), AppError> {
-    delete()?;
-    info!("Logout successful, credentials deleted");
-    Ok(())
 }
 
 /// Authenticates the API service using the stored credential type.

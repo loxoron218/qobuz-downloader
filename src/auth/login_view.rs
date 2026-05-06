@@ -52,8 +52,6 @@ pub struct LoginWidgets {
     pub auth_token_row: PasswordEntryRow,
     /// Email/password login toggle button.
     pub email_toggle: ToggleButton,
-    /// Token login toggle button.
-    pub token_toggle: ToggleButton,
 }
 
 /// Builds the login view UI and returns the root widget with widget references.
@@ -137,7 +135,6 @@ pub fn build(state: &AppState, sender: Sender<AuthEvent>) -> LoginWidgets {
         user_id_row,
         auth_token_row,
         email_toggle,
-        token_toggle,
     };
 
     connect_submit_handler(state, sender, &widgets);

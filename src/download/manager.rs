@@ -26,7 +26,7 @@ use crate::{
         DownloadEvent::{self, Completed, Failed, Started},
         DownloadItem::{self, Album, Artist, Playlist, Track},
         DownloadStatus::{Active, Cancelled, Completed as StatusCompleted, Failed as ItemFailed},
-        DownloadTask, Quality, cancel_all_tasks,
+        DownloadTask, Quality,
     },
     errors::AppError::{self, Download},
 };
@@ -76,20 +76,9 @@ impl DownloadManager {
         self.evt_receiver.clone()
     }
 
-    /// Returns a snapshot of all tracked tasks.
-    pub fn tasks(&self) -> Vec<DownloadTask> {
-        let tasks = self.tasks.lock();
-        tasks.values().cloned().collect()
-    }
-
     /// Returns a shared handle to the tasks map for view access.
     pub fn tasks_handle(&self) -> Arc<Mutex<HashMap<Uuid, DownloadTask>>> {
         Arc::clone(&self.tasks)
-    }
-
-    /// Cancels all active and queued downloads and clears the queue.
-    pub fn cancel_all(&self) {
-        cancel_all_tasks(&self.tasks);
     }
 
     /// Starts the download worker loop in a background thread.
@@ -256,7 +245,7 @@ fn handle_download_result(
                 t.completed_at = Some(Local::now());
             }
             drop(map);
-            send_event(evt_sender, Completed { id: task_id, path });
+            send_event(evt_sender, Completed { id: task_id });
         }
         Err(err) => {
             error!(id = %task_id, error = %err, "Download failed");
@@ -266,13 +255,7 @@ fn handle_download_result(
                 t.completed_at = Some(Local::now());
             }
             drop(map);
-            send_event(
-                evt_sender,
-                Failed {
-                    id: task_id,
-                    error: format!("{err}"),
-                },
-            );
+            send_event(evt_sender, Failed { id: task_id });
         }
     }
 }
@@ -290,13 +273,7 @@ fn handle_cancel(
         t.completed_at = Some(Local::now());
     }
     drop(map);
-    send_event(
-        evt_sender,
-        Failed {
-            id,
-            error: "Cancelled by user".to_string(),
-        },
-    );
+    send_event(evt_sender, Failed { id });
 }
 
 /// Executes a single download using the API service.

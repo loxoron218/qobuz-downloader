@@ -32,7 +32,7 @@ use crate::{
             DownloadTask,
             Quality::{self, Flac16_44, Flac24_96, Flac24_192, Mp3_320},
         },
-        view::{QueueSection, build_queue_section},
+        view::build_queue_section,
     },
     preferences::settings::save_settings,
     ui::{build_content_clamp, wrap_clamp_in_scrolled},
@@ -45,8 +45,6 @@ pub struct DashboardWidgets {
     pub root: ToolbarView,
     /// Header bar widget.
     pub header: HeaderBar,
-    /// Download queue section.
-    pub queue_section: QueueSection,
 }
 
 /// Context for enqueuing a download after metadata fetch.
@@ -321,8 +319,7 @@ fn build_download_item(parsed: &ParsedUrl, meta: &FetchedMeta) -> DownloadItem {
             artist: meta.artist.clone(),
             cover_url: meta.cover_url.clone(),
         },
-        ParsedUrl::Playlist(id) => Playlist {
-            playlist_id: id.clone(),
+        ParsedUrl::Playlist(_id) => Playlist {
             title: meta.title.clone(),
             cover_url: meta.cover_url.clone(),
         },
@@ -440,6 +437,5 @@ pub fn build(
     DashboardWidgets {
         root: toolbar,
         header,
-        queue_section,
     }
 }

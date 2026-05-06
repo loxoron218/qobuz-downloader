@@ -1,45 +1,10 @@
 //! Shared UI scaffolding utilities.
 
 use libadwaita::{
-    Clamp, HeaderBar, ToolbarView,
+    Clamp,
     gtk::{Box, Orientation::Vertical, PolicyType::Automatic, ScrolledWindow},
     prelude::{BoxExt, WidgetExt},
 };
-
-/// Creates a `ToolbarView` with a header bar and a vertically-oriented content box
-/// with standard margins.
-///
-/// # Arguments
-///
-/// * `title_widget` - Widget to set as the header bar's title (e.g. `Label`, `Entry`)
-///
-/// # Returns
-///
-/// A tuple of `(ToolbarView, HeaderBar, Box)` where `Box` is the content container.
-pub fn create_page_scaffold(title_widget: &impl WidgetExt) -> (ToolbarView, HeaderBar, Box) {
-    let toolbar = ToolbarView::new();
-    let header = HeaderBar::new();
-    header.set_title_widget(Some(title_widget));
-    toolbar.add_top_bar(&header);
-
-    let content_box = Box::new(Vertical, 12);
-    content_box.set_margin_start(12);
-    content_box.set_margin_end(12);
-    content_box.set_margin_top(6);
-    content_box.set_margin_bottom(6);
-
-    (toolbar, header, content_box)
-}
-
-/// Wraps the content box in a scrolled window and sets it as the toolbar's content.
-pub fn wrap_content_in_scrolled(toolbar: &ToolbarView, content_box: &Box) -> ScrolledWindow {
-    let scrolled = ScrolledWindow::new();
-    scrolled.set_policy(Automatic, Automatic);
-    scrolled.set_vexpand(true);
-    scrolled.set_child(Some(content_box));
-    toolbar.set_content(Some(&scrolled));
-    scrolled
-}
 
 /// Creates a content clamp with standard page margins.
 ///

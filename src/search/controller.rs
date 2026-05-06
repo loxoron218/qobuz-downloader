@@ -33,11 +33,6 @@ impl SearchController {
         }
     }
 
-    /// Submits an unscoped search query across all content types.
-    pub fn search(&self, query: &str, sender: Sender<SearchEvent>) {
-        self.search_scoped(query, SearchScope::All, sender);
-    }
-
     /// Submits a scoped search query.
     pub fn search_scoped(&self, query: &str, scope: SearchScope, sender: Sender<SearchEvent>) {
         if query.trim().is_empty() {
@@ -67,8 +62,6 @@ impl SearchController {
 pub enum SearchEvent {
     /// Search failed.
     Error {
-        /// The original query string.
-        query: String,
         /// Error description.
         error: String,
     },
@@ -106,18 +99,6 @@ impl SearchScope {
             3 => Self::Artists,
             4 => Self::Playlists,
             _ => Self::All,
-        }
-    }
-
-    /// Converts this scope to a u32 index for persistence.
-    #[must_use]
-    pub fn to_u32(self) -> u32 {
-        match self {
-            Self::All => 0,
-            Self::Albums => 1,
-            Self::Tracks => 2,
-            Self::Artists => 3,
-            Self::Playlists => 4,
         }
     }
 }
@@ -204,7 +185,6 @@ fn search_result_to_event(
         Err(err) => {
             error!(error = %err, query = %query, "Search failed");
             SearchEvent::Error {
-                query,
                 error: format!("{err}"),
             }
         }

@@ -22,7 +22,7 @@ use crate::{
             LoginWidgets, build as build_login, current_method,
         },
         session::{
-            AuthEvent::{self, Authenticated, AuthenticationFailed, ReauthFailed, Reauthenticated},
+            AuthEvent::{self, Authenticated, AuthenticationFailed},
             AuthState::{Authenticated as StateAuthenticated, Authenticating, Unauthenticated},
             perform_keyring_login,
         },
@@ -117,14 +117,7 @@ pub fn build_window(app: &Application, state: &AppState) -> ApplicationWindow {
         *auth_state = Authenticating;
     }
 
-    setup_auth_receiver(
-        state,
-        &toolbar,
-        &nav_view,
-        &dashboard_page,
-        &login_widgets,
-        auth_receiver,
-    );
+    setup_auth_receiver(state, &toolbar, &nav_view, &login_widgets, auth_receiver);
 
     download_manager.start_worker();
 
@@ -153,26 +146,17 @@ fn setup_auth_receiver(
     state: &AppState,
     toolbar: &ToolbarView,
     nav_view: &NavigationView,
-    dashboard_page: &NavigationPage,
     login_widgets: &LoginWidgets,
     receiver: Receiver<AuthEvent>,
 ) {
     let toolbar = toolbar.clone();
     let nav_view = nav_view.clone();
-    let dashboard_page = dashboard_page.clone();
     let state = state.clone();
     let login_widgets = login_widgets.clone();
 
     MainContext::default().spawn_local(async move {
         while let Ok(event) = receiver.recv().await {
-            handle_auth_event(
-                &event,
-                &state,
-                &toolbar,
-                &nav_view,
-                &dashboard_page,
-                &login_widgets,
-            );
+            handle_auth_event(&event, &state, &toolbar, &nav_view, &login_widgets);
         }
     });
 }
@@ -183,7 +167,6 @@ fn handle_auth_event(
     state: &AppState,
     toolbar: &ToolbarView,
     nav_view: &NavigationView,
-    _dashboard_page: &NavigationPage,
     login_widgets: &LoginWidgets,
 ) {
     match event {
@@ -208,20 +191,6 @@ fn handle_auth_event(
                 login_widgets.error_label.set_text(err_msg);
                 login_widgets.error_label.set_visible(true);
             }
-            reset_login_sensitivity(login_widgets);
-        }
-        Reauthenticated => {
-            info!("Re-authentication successful");
-        }
-        ReauthFailed { error: err_msg } => {
-            error!(error = %err_msg, "Re-authentication failed");
-            {
-                let mut auth_state = state.auth_state.lock();
-                *auth_state = Unauthenticated;
-            }
-            toolbar.set_content(Some(&login_widgets.root));
-            login_widgets.error_label.set_text(err_msg);
-            login_widgets.error_label.set_visible(true);
             reset_login_sensitivity(login_widgets);
         }
     }
