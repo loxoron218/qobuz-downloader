@@ -80,6 +80,8 @@ pub enum DownloadItem {
     },
     /// Playlist download.
     Playlist {
+        /// Playlist ID for fetching tracks.
+        playlist_id: String,
         /// Playlist name for display.
         title: String,
         /// Cover art URL.

@@ -102,10 +102,10 @@ fn parse_qobuz_url(input: &str) -> Option<ParsedUrl> {
         return Some(ParsedUrl::Album(trimmed.to_string()));
     }
 
-    let playlist_re = Regex::new(
-        r"https?://(?:play\.|open\.)?qobuz\.com/(?:[a-z]{2}-[a-z]{2}/)?playlist/([a-zA-Z0-9-]+)",
-    )
-    .ok()?;
+    let playlist_re =
+        Regex::new(r"https?://(?:www\.|play\.|open\.)?qobuz\.com/(?:[a-z]{2}-[a-z]{2}/)?playlists?/[^/]+/(\d+)")
+            .ok()?;
+
     let album_play_re =
         Regex::new(r"https?://(?:play\.|open\.)?qobuz\.com/album/([a-zA-Z0-9-]+)").ok()?;
     let track_play_re =
@@ -118,11 +118,6 @@ fn parse_qobuz_url(input: &str) -> Option<ParsedUrl> {
         Regex::new(r"https?://(?:www\.)?qobuz\.com/(?:[a-z]{2}-[a-z]{2}/)?track/[^/]+/(\d+)")
             .ok()?;
 
-    if let Some(caps) = playlist_re.captures(trimmed)
-        && let Some(id) = caps.get(1)
-    {
-        return Some(ParsedUrl::Playlist(id.as_str().to_string()));
-    }
     if let Some(caps) = album_play_re.captures(trimmed)
         && let Some(id) = caps.get(1)
     {
@@ -132,6 +127,11 @@ fn parse_qobuz_url(input: &str) -> Option<ParsedUrl> {
         && let Some(id) = caps.get(1)
     {
         return Some(ParsedUrl::Track(id.as_str().to_string()));
+    }
+    if let Some(caps) = playlist_re.captures(trimmed)
+        && let Some(id) = caps.get(1)
+    {
+        return Some(ParsedUrl::Playlist(id.as_str().to_string()));
     }
     if let Some(caps) = old_album_re.captures(trimmed)
         && let Some(id) = caps.get(1)
@@ -214,6 +214,31 @@ fn fetch_track_meta(api: &QobuzApiService, track_id: i32) -> Option<FetchedMeta>
     })
 }
 
+/// Fetches playlist metadata from the Qobuz API.
+fn fetch_playlist_meta(api: &QobuzApiService, playlist_id: &str) -> Option<FetchedMeta> {
+    let playlist = api.get_playlist(playlist_id, Some("tracks")).ok()?;
+    let title = playlist
+        .name
+        .as_deref()
+        .unwrap_or("Unknown Playlist")
+        .to_string();
+    let artist = playlist
+        .creator
+        .as_ref()
+        .and_then(|u| u.display_name.as_deref())
+        .unwrap_or("Unknown Creator")
+        .to_string();
+    let cover_url = playlist
+        .image
+        .as_ref()
+        .and_then(|img| img.thumbnail.clone());
+    Some(FetchedMeta {
+        title,
+        artist,
+        cover_url,
+    })
+}
+
 /// Validates and parses the input text, showing an error toast if invalid.
 ///
 /// # Returns
@@ -276,7 +301,7 @@ fn fetch_and_enqueue(
         let meta = match &parsed_spawn {
             ParsedUrl::Album(id) => fetch_album_meta(&api, id),
             ParsedUrl::Track(id) => fetch_track_meta(&api, id.parse::<i32>().unwrap_or(0)),
-            ParsedUrl::Playlist(_) => None,
+            ParsedUrl::Playlist(id) => fetch_playlist_meta(&api, id),
         };
         drop(api);
         if let Err(e) = tx.send_blocking(meta) {
@@ -319,7 +344,8 @@ fn build_download_item(parsed: &ParsedUrl, meta: &FetchedMeta) -> DownloadItem {
             artist: meta.artist.clone(),
             cover_url: meta.cover_url.clone(),
         },
-        ParsedUrl::Playlist(_id) => Playlist {
+        ParsedUrl::Playlist(id) => Playlist {
+            playlist_id: id.clone(),
             title: meta.title.clone(),
             cover_url: meta.cover_url.clone(),
         },

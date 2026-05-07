@@ -304,12 +304,68 @@ fn execute_download(
             Artist { artist_id, .. } => {
                 execute_artist_download(&mut api, *artist_id, format_id, output_dir)
             }
-            Playlist { .. } => Err(Download("Playlist download not yet supported".to_string())),
+            Playlist {
+                playlist_id,
+                title: _,
+                ..
+            } => {
+                let track_ids = extract_playlist_track_ids(&api, playlist_id)?;
+                download_playlist_tracks(&mut api, track_ids, format_id, output_dir)
+            }
             Track { track_id, .. } => api
                 .download_track(*track_id, format_id, output_dir, None)
                 .map_err(AppError::from),
         }
     }
+}
+
+/// Extracts track IDs from a playlist.
+///
+/// # Errors
+///
+/// Returns `Download` if the playlist has no tracks.
+fn extract_playlist_track_ids(
+    api: &QobuzApiService,
+    playlist_id: &str,
+) -> Result<Vec<i32>, AppError> {
+    let playlist = api
+        .get_playlist(playlist_id, Some("tracks"))
+        .map_err(AppError::from)?;
+    playlist
+        .tracks
+        .and_then(|t| t.items)
+        .map(|items| items.into_iter().filter_map(|t| t.id).collect())
+        .filter(|ids: &Vec<i32>| !ids.is_empty())
+        .ok_or_else(|| Download("No tracks in playlist".to_string()))
+}
+
+/// Downloads all tracks from a playlist.
+///
+/// # Arguments
+///
+/// * `api` - API service reference
+/// * `track_ids` - List of track IDs to download
+/// * `format_id` - Audio format ID for download
+/// * `output_dir` - Output directory for downloaded files
+///
+/// # Errors
+///
+/// Returns `Download` if no tracks could be downloaded.
+fn download_playlist_tracks(
+    api: &mut QobuzApiService,
+    track_ids: Vec<i32>,
+    format_id: i32,
+    output_dir: &Path,
+) -> Result<PathBuf, AppError> {
+    let mut last_path = None;
+    for track_id in track_ids {
+        match api.download_track(track_id, format_id, output_dir, None) {
+            Ok(path) => last_path = Some(path),
+            Err(e) if last_path.is_none() => return Err(AppError::from(e)),
+            Err(_) => {}
+        }
+    }
+    last_path.ok_or_else(|| Download("No tracks downloaded".to_string()))
 }
 
 /// Downloads all albums by an artist via the release list.

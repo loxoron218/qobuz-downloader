@@ -144,6 +144,8 @@ enum SearchResultItem {
     },
     /// Playlist result.
     Playlist {
+        /// Playlist ID.
+        id: String,
         /// Playlist name.
         name: String,
         /// Cover art thumbnail URL.
@@ -626,8 +628,12 @@ fn create_split_button(item: &SearchResultItem, ctx: &SearchCtx) -> SplitButton 
             cover_url: cover_url.clone(),
         },
         SearchResultItem::Playlist {
-            name, cover_url, ..
+            id,
+            name,
+            cover_url,
+            ..
         } => DownloadItem::Playlist {
+            playlist_id: id.clone(),
             title: name.clone(),
             cover_url: cover_url.clone(),
         },
@@ -768,6 +774,7 @@ fn populate_playlist_items(result: &SearchResult, items: &Rc<RefCell<Vec<SearchR
         return;
     };
     for playlist in playlist_items {
+        let id = playlist.id.clone().unwrap_or_default();
         let name = playlist.name.as_deref().unwrap_or("Unknown Playlist");
         let cover_url = playlist
             .image
@@ -775,6 +782,7 @@ fn populate_playlist_items(result: &SearchResult, items: &Rc<RefCell<Vec<SearchR
             .and_then(|img| img.thumbnail.clone());
         let is_explicit = false;
         items.borrow_mut().push(SearchResultItem::Playlist {
+            id,
             name: name.to_string(),
             cover_url,
             is_explicit,
