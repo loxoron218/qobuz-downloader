@@ -1,7 +1,7 @@
 //! Search view UI matching the original implementation: `SearchEntry`, scope selector,
 //! Hi-Res and explicit content indicators, inline `SplitButton` for download/queue actions.
 
-use std::{cell::RefCell, collections::HashMap, rc::Rc, sync::Arc};
+use std::{cell::RefCell, collections::HashMap, rc::Rc, sync::Arc, thread::spawn};
 
 use {
     async_channel::{Receiver, Sender, unbounded},
@@ -10,6 +10,7 @@ use {
         glib::{
             MainContext,
             Propagation::{Proceed, Stop},
+            object::Cast,
         },
         gtk::{
             Align::{Center, End, Start},
@@ -25,7 +26,7 @@ use {
         prelude::{BoxExt, ButtonExt, EditableExt, ListBoxRowExt, PopoverExt, WidgetExt},
     },
     parking_lot::Mutex,
-    qobuz_api_rust_refactor::models::search::SearchResult,
+    qobuz_api_rust_refactor::{api::service::QobuzApiService, models::search::SearchResult},
     tracing::warn,
 };
 
@@ -78,6 +79,10 @@ struct SearchCtx {
     texture_sender: Sender<(String, Option<Texture>)>,
     /// Picture widgets registered per cover URL for texture updates.
     picture_map: Rc<RefCell<HashMap<String, Vec<Picture>>>>,
+    /// Picture widgets registered per artist ID for async image loading.
+    artist_picture_map: Rc<RefCell<HashMap<i32, Picture>>>,
+    /// Picture widgets registered per playlist ID for async image loading.
+    playlist_picture_map: Rc<RefCell<HashMap<String, Picture>>>,
     /// Toast overlay for search feedback.
     toast_overlay: ToastOverlay,
     /// Whether a search is currently in progress.
@@ -86,6 +91,8 @@ struct SearchCtx {
     settings: Arc<Mutex<AppSettings>>,
     /// Channel sender for download commands.
     cmd_sender: Sender<DownloadCommand>,
+    /// Shared API client for fetching artist/playlist details.
+    api_service: Arc<Mutex<QobuzApiService>>,
 }
 
 /// Structured search result item with full display data.
@@ -141,6 +148,8 @@ enum SearchResultItem {
         id: i32,
         /// Artist name.
         name: String,
+        /// Cover art thumbnail URL.
+        cover_url: Option<String>,
     },
     /// Playlist result.
     Playlist {
@@ -241,6 +250,10 @@ pub fn build(state: &AppState, cmd_sender: Sender<DownloadCommand>) -> SearchWid
     let (texture_sender, texture_receiver) = unbounded::<(String, Option<Texture>)>();
     let picture_map: Rc<RefCell<HashMap<String, Vec<Picture>>>> =
         Rc::new(RefCell::new(HashMap::new()));
+    let artist_picture_map: Rc<RefCell<HashMap<i32, Picture>>> =
+        Rc::new(RefCell::new(HashMap::new()));
+    let playlist_picture_map: Rc<RefCell<HashMap<String, Picture>>> =
+        Rc::new(RefCell::new(HashMap::new()));
     setup_texture_receiver(texture_receiver, Rc::clone(&picture_map));
 
     let items: Rc<RefCell<Vec<SearchResultItem>>> = Rc::new(RefCell::new(Vec::new()));
@@ -255,10 +268,13 @@ pub fn build(state: &AppState, cmd_sender: Sender<DownloadCommand>) -> SearchWid
         cover_art_cache,
         texture_sender,
         picture_map: Rc::clone(&picture_map),
+        artist_picture_map: Rc::clone(&artist_picture_map),
+        playlist_picture_map: Rc::clone(&playlist_picture_map),
         toast_overlay: toast_overlay.clone(),
         is_loading: Rc::clone(&is_loading),
         settings: Arc::clone(&state.settings),
         cmd_sender,
+        api_service: Arc::clone(&state.api_service),
     };
 
     connect_search_entry(
@@ -425,6 +441,18 @@ fn create_data_row(item: &SearchResultItem, ctx: &SearchCtx) -> ListBoxRow {
 
     attach_cover_art(item, &picture, ctx);
 
+    match item {
+        SearchResultItem::Artist { id, .. } => {
+            ctx.artist_picture_map.borrow_mut().insert(*id, picture);
+        }
+        SearchResultItem::Playlist { id, .. } => {
+            ctx.playlist_picture_map
+                .borrow_mut()
+                .insert(id.clone(), picture);
+        }
+        _ => {}
+    }
+
     let row = ListBoxRow::new();
     row.set_child(Some(&row_box));
 
@@ -433,14 +461,14 @@ fn create_data_row(item: &SearchResultItem, ctx: &SearchCtx) -> ListBoxRow {
 
 /// Attaches cover art texture to the picture widget.
 fn attach_cover_art(item: &SearchResultItem, picture: &Picture, ctx: &SearchCtx) {
-    let cover_url = match item {
+    let url = match item {
         SearchResultItem::Track { cover_url, .. }
         | SearchResultItem::Album { cover_url, .. }
-        | SearchResultItem::Playlist { cover_url, .. } => cover_url.clone(),
-        SearchResultItem::Artist { .. } => None,
+        | SearchResultItem::Playlist { cover_url, .. }
+        | SearchResultItem::Artist { cover_url, .. } => cover_url.clone(),
     };
 
-    if let Some(url) = cover_url {
+    if let Some(url) = url {
         if let Some(texture) = ctx.cover_art_cache.get(&url) {
             picture.set_paintable(Some(&texture));
         } else {
@@ -758,9 +786,11 @@ fn populate_artist_items(result: &SearchResult, items: &Rc<RefCell<Vec<SearchRes
     for artist in artist_items {
         let Some(id) = artist.id else { continue };
         let name = artist.name.as_deref().unwrap_or("Unknown Artist");
+        let cover_url = artist.image.as_ref().and_then(|img| img.thumbnail.clone());
         items.borrow_mut().push(SearchResultItem::Artist {
             id,
             name: name.to_string(),
+            cover_url,
         });
     }
 }
@@ -790,12 +820,178 @@ fn populate_playlist_items(result: &SearchResult, items: &Rc<RefCell<Vec<SearchR
     }
 }
 
+/// Fetches missing artist/playlist images asynchronously.
+fn fetch_missing_images(ctx: &SearchCtx) {
+    let items = ctx.items.borrow();
+
+    let items_to_fetch: Vec<(String, bool)> = items
+        .iter()
+        .filter_map(|item| match item {
+            SearchResultItem::Artist { id, cover_url, .. } if cover_url.is_none() => {
+                Some((id.to_string(), true))
+            }
+            SearchResultItem::Playlist { id, cover_url, .. } if cover_url.is_none() => {
+                Some((id.clone(), false))
+            }
+            _ => None,
+        })
+        .collect();
+
+    if items_to_fetch.is_empty() {
+        return;
+    }
+
+    let api_service = Arc::clone(&ctx.api_service);
+    let texture_sender = ctx.texture_sender.clone();
+    let picture_map = Rc::clone(&ctx.picture_map);
+    let cover_art_cache = ctx.cover_art_cache.clone();
+    let artist_picture_map = Rc::clone(&ctx.artist_picture_map);
+    let playlist_picture_map = Rc::clone(&ctx.playlist_picture_map);
+
+    let (tx, rx) = unbounded::<(String, Option<String>, bool)>();
+
+    spawn(move || {
+        for (id, is_artist) in items_to_fetch {
+            send_cover_url(&tx, &api_service, id, is_artist);
+        }
+    });
+
+    MainContext::default().spawn_local(async move {
+        while let Ok(msg) = rx.recv().await {
+            process_picture_update(
+                msg,
+                &artist_picture_map,
+                &playlist_picture_map,
+                &cover_art_cache,
+                &picture_map,
+                &texture_sender,
+            );
+        }
+    });
+}
+
+/// Processes picture update message from channel.
+fn process_picture_update(
+    (id, url, is_artist): (String, Option<String>, bool),
+    artist_picture_map: &Rc<RefCell<HashMap<i32, Picture>>>,
+    playlist_picture_map: &Rc<RefCell<HashMap<String, Picture>>>,
+    cover_art_cache: &CoverArtCache,
+    picture_map: &Rc<RefCell<HashMap<String, Vec<Picture>>>>,
+    texture_sender: &Sender<(String, Option<Texture>)>,
+) {
+    if let Some(picture) = find_picture(&id, is_artist, artist_picture_map, playlist_picture_map) {
+        if let Some(url) = url {
+            update_picture_with_cover(picture, url, cover_art_cache, picture_map, texture_sender);
+        } else {
+            set_fallback_icon(&picture, is_artist);
+        }
+    }
+}
+
+/// Finds picture widget for given ID.
+fn find_picture(
+    id: &str,
+    is_artist: bool,
+    artist_picture_map: &Rc<RefCell<HashMap<i32, Picture>>>,
+    playlist_picture_map: &Rc<RefCell<HashMap<String, Picture>>>,
+) -> Option<Picture> {
+    if is_artist {
+        let artist_id = id.parse::<i32>().ok()?;
+        artist_picture_map.borrow().get(&artist_id).cloned()
+    } else {
+        playlist_picture_map.borrow().get(id).cloned()
+    }
+}
+
+/// Sets fallback icon on picture widget when no image is available.
+fn set_fallback_icon(picture: &Picture, is_artist: bool) {
+    let icon = if is_artist {
+        "avatar-default-symbolic"
+    } else {
+        "audio-x-generic-symbolic"
+    };
+
+    if let Some(parent) = picture.parent()
+        && let Ok(box_) = parent.downcast::<GtkBox>()
+    {
+        box_.remove(picture);
+
+        let img = Image::from_icon_name(icon);
+        img.set_size_request(64, 64);
+        img.add_css_class("thumbnail");
+        box_.prepend(&img);
+    }
+}
+
+/// Updates a picture widget with cover art from cache or starts loading.
+fn update_picture_with_cover(
+    picture: Picture,
+    url: String,
+    cover_art_cache: &CoverArtCache,
+    picture_map: &Rc<RefCell<HashMap<String, Vec<Picture>>>>,
+    texture_sender: &Sender<(String, Option<Texture>)>,
+) {
+    if let Some(texture) = cover_art_cache.get(&url) {
+        picture.set_paintable(Some(&texture));
+    } else {
+        picture_map
+            .borrow_mut()
+            .entry(url.clone())
+            .or_default()
+            .push(picture);
+        cover_art_cache.start_load(url, texture_sender.clone());
+    }
+}
+
+/// Sends cover URL to channel if fetched successfully.
+fn send_cover_url(
+    tx: &Sender<(String, Option<String>, bool)>,
+    api_service: &Arc<Mutex<QobuzApiService>>,
+    id: String,
+    is_artist: bool,
+) {
+    let url = if is_artist {
+        fetch_artist_cover_url(api_service, &id)
+    } else {
+        fetch_playlist_cover_url(api_service, &id)
+    };
+
+    if tx.send_blocking((id, url, is_artist)).is_err() {
+        warn!("Failed to send cover URL to channel");
+    }
+}
+
+/// Fetches artist cover URL from API.
+fn fetch_artist_cover_url(api_service: &Arc<Mutex<QobuzApiService>>, id: &str) -> Option<String> {
+    let artist_id = id.parse::<i32>().ok()?;
+    let api = api_service.lock();
+    let artist = api.get_artist(artist_id, None).ok()?;
+    let img = artist.image?;
+    let url = img.thumbnail.clone().or_else(|| img.small.clone())?;
+    let result = Some(url);
+    drop(api);
+    result
+}
+
+/// Fetches playlist cover URL from API.
+fn fetch_playlist_cover_url(api_service: &Arc<Mutex<QobuzApiService>>, id: &str) -> Option<String> {
+    let api = api_service.lock();
+    let playlist = api.get_playlist(id, None).ok()?;
+    let img = playlist.image?;
+    let url = img.thumbnail.clone().or_else(|| img.small.clone())?;
+    let result = Some(url);
+    drop(api);
+    result
+}
+
 /// Clears the list box and repopulates with sectioned results.
 fn populate_results(ctx: &SearchCtx, result: &SearchResult) {
     while let Some(row) = ctx.list_box.first_child() {
         ctx.list_box.remove(&row);
     }
     ctx.items.borrow_mut().clear();
+    ctx.artist_picture_map.borrow_mut().clear();
+    ctx.playlist_picture_map.borrow_mut().clear();
 
     populate_track_items(result, &ctx.items);
     populate_album_items(result, &ctx.items);
@@ -824,6 +1020,8 @@ fn populate_results(ctx: &SearchCtx, result: &SearchResult) {
         let row = create_data_row(item, ctx);
         ctx.list_box.append(&row);
     }
+
+    fetch_missing_images(ctx);
 }
 
 /// Adds track items to the item vector.
