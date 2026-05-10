@@ -7,6 +7,7 @@ use {
     async_channel::{Receiver, Sender, unbounded},
     libadwaita::{
         HeaderBar, NavigationView, SplitButton, Toast, ToastOverlay, ToolbarView,
+        gdk::{Key, Texture},
         glib::{
             MainContext,
             Propagation::{Proceed, Stop},
@@ -14,17 +15,20 @@ use {
         },
         gtk::{
             Align::{Center, End, Start},
-            Box as GtkBox, Button, DropDown, EventControllerKey, Image, Label, ListBox, ListBoxRow,
+            Box, Button, DropDown, EventControllerKey, GestureClick, Image, Label, ListBox,
+            ListBoxRow,
             Orientation::{Horizontal, Vertical},
             Picture,
             PolicyType::Automatic,
             Popover, ScrolledWindow, SearchEntry,
             SelectionMode::Single,
-            gdk::{Key, Texture},
             pango::EllipsizeMode::End as EllipsizeEnd,
         },
-        prelude::{BoxExt, ButtonExt, EditableExt, ListBoxRowExt, PopoverExt, WidgetExt},
+        prelude::{
+            BoxExt, ButtonExt, EditableExt, GestureSingleExt, ListBoxRowExt, PopoverExt, WidgetExt,
+        },
     },
+    num_traits::AsPrimitive,
     parking_lot::Mutex,
     qobuz_api_rust_refactor::{api::service::QobuzApiService, models::search::SearchResult},
     tracing::warn,
@@ -32,6 +36,7 @@ use {
 
 use crate::{
     app::AppState,
+    browse::{BrowseEvent, browse_album},
     cover_art::cache::CoverArtCache,
     download::progress::{DownloadCommand, DownloadItem, DownloadTask},
     preferences::settings::AppSettings,
@@ -191,16 +196,10 @@ impl SearchWidgets {
     }
 }
 
-/// Builds the search view UI and returns the root widget and widget references.
-///
-/// # Arguments
-///
-/// * `state` - Shared application state
-/// * `cmd_sender` - Channel sender for download commands
-pub fn build(state: &AppState, cmd_sender: Sender<DownloadCommand>) -> SearchWidgets {
-    let controller = SearchController::new(Arc::clone(&state.api_service));
-    let (search_sender, search_receiver) = unbounded::<SearchEvent>();
-
+/// Builds the search scaffold UI.
+fn build_search_scaffold(
+    saved_scope: u32,
+) -> (ToolbarView, SearchEntry, DropDown, ListBox, ToastOverlay) {
     let toolbar = ToolbarView::new();
     let header = HeaderBar::new();
 
@@ -211,7 +210,6 @@ pub fn build(state: &AppState, cmd_sender: Sender<DownloadCommand>) -> SearchWid
 
     let toast_overlay = ToastOverlay::new();
 
-    let saved_scope = state.settings.lock().search_scope;
     let scope_selector =
         DropDown::from_strings(&["All", "Albums", "Tracks", "Artists", "Playlists"]);
     scope_selector.set_selected(saved_scope);
@@ -221,7 +219,7 @@ pub fn build(state: &AppState, cmd_sender: Sender<DownloadCommand>) -> SearchWid
         .hexpand(true)
         .build();
 
-    let header_box = GtkBox::new(Horizontal, 8);
+    let header_box = Box::new(Horizontal, 8);
     header_box.set_margin_top(16);
     header_box.set_margin_bottom(16);
     header_box.set_margin_start(16);
@@ -240,12 +238,101 @@ pub fn build(state: &AppState, cmd_sender: Sender<DownloadCommand>) -> SearchWid
     results_scrolled.set_vexpand(true);
     results_scrolled.set_child(Some(&list_box));
 
-    let content_box = GtkBox::new(Vertical, 0);
+    let content_box = Box::new(Vertical, 0);
     content_box.append(&header_box);
     content_box.append(&results_scrolled);
 
     toast_overlay.set_child(Some(&content_box));
     toolbar.set_content(Some(&toast_overlay));
+
+    (
+        toolbar,
+        search_entry,
+        scope_selector,
+        list_box,
+        toast_overlay,
+    )
+}
+
+/// Sets up double-click gesture handler to browse album details.
+fn setup_results_activation(
+    list_box: &ListBox,
+    items: Rc<RefCell<Vec<SearchResultItem>>>,
+    api_service: Arc<Mutex<QobuzApiService>>,
+    browse_sender: Sender<BrowseEvent>,
+) {
+    let list_box_owned = list_box.clone();
+    let gesture = GestureClick::new();
+    gesture.set_button(1);
+    gesture.connect_pressed(move |_, n_press, _x, y| {
+        if n_press != 2 {
+            return;
+        }
+        let row = list_box_owned.row_at_y(y.as_());
+        let Some(row) = row else {
+            return;
+        };
+        let position = row.index().unsigned_abs();
+        let items_ref = items.borrow();
+        let album_id = find_album_at_position(&items_ref, position).map(ToString::to_string);
+        drop(items_ref);
+        let Some(id) = album_id else {
+            return;
+        };
+        browse_album(Arc::clone(&api_service), id, browse_sender.clone());
+    });
+    list_box.add_controller(gesture);
+}
+
+/// Sets up scope selector to re-trigger search with new scope.
+fn setup_scope_selector(
+    scope_selector: &DropDown,
+    controller: &SearchController,
+    search_entry: &SearchEntry,
+    search_sender: Sender<SearchEvent>,
+    scope: Rc<RefCell<SearchScope>>,
+    settings: Arc<Mutex<AppSettings>>,
+) {
+    let scope_controller = controller.clone();
+    let scope_entry = search_entry.clone();
+
+    scope_selector.connect_selected_item_notify(move |widget| {
+        let idx = widget.selected();
+        let new_scope = SearchScope::from_u32(idx);
+        *scope.borrow_mut() = new_scope;
+
+        let mut s = settings.lock();
+        s.search_scope = idx;
+        drop(s);
+
+        if !scope_entry.text().trim().is_empty() {
+            scope_controller.search_scoped(
+                scope_entry.text().as_ref(),
+                new_scope,
+                search_sender.clone(),
+            );
+        }
+    });
+}
+
+/// Builds the search view UI and returns the root widget and widget references.
+///
+/// # Arguments
+///
+/// * `state` - Shared application state
+/// * `cmd_sender` - Channel sender for download commands
+/// * `browse_sender` - Channel sender for browse events (album navigation)
+pub fn build(
+    state: &AppState,
+    cmd_sender: Sender<DownloadCommand>,
+    browse_sender: Sender<BrowseEvent>,
+) -> SearchWidgets {
+    let controller = SearchController::new(Arc::clone(&state.api_service));
+    let (search_sender, search_receiver) = unbounded::<SearchEvent>();
+
+    let saved_scope = state.settings.lock().search_scope;
+    let (toolbar, search_entry, scope_selector, list_box, toast_overlay) =
+        build_search_scaffold(saved_scope);
 
     let (texture_sender, texture_receiver) = unbounded::<(String, Option<Texture>)>();
     let picture_map: Rc<RefCell<HashMap<String, Vec<Picture>>>> =
@@ -262,9 +349,11 @@ pub fn build(state: &AppState, cmd_sender: Sender<DownloadCommand>) -> SearchWid
 
     let scope: Rc<RefCell<SearchScope>> = Rc::new(RefCell::new(SearchScope::from_u32(saved_scope)));
 
+    let list_box_for_activation = list_box.clone();
+
     let ctx = SearchCtx {
         list_box,
-        items,
+        items: Rc::clone(&items),
         cover_art_cache,
         texture_sender,
         picture_map: Rc::clone(&picture_map),
@@ -287,30 +376,20 @@ pub fn build(state: &AppState, cmd_sender: Sender<DownloadCommand>) -> SearchWid
     );
     setup_search_receiver(search_receiver, ctx);
 
-    let scope_settings = Arc::clone(&state.settings);
-
-    let controller_clone = controller;
-    let search_entry_clone = search_entry.clone();
-    let search_sender_clone = search_sender;
-    let scope_clone = Rc::clone(&scope);
-
-    scope_selector.connect_selected_item_notify(move |scope_widget| {
-        let idx = scope_widget.selected();
-        let new_scope = SearchScope::from_u32(idx);
-        *scope_clone.borrow_mut() = new_scope;
-
-        let mut settings = scope_settings.lock();
-        settings.search_scope = idx;
-        drop(settings);
-
-        if !search_entry_clone.text().trim().is_empty() {
-            controller_clone.search_scoped(
-                search_entry_clone.text().as_ref(),
-                new_scope,
-                search_sender_clone.clone(),
-            );
-        }
-    });
+    setup_results_activation(
+        &list_box_for_activation,
+        items,
+        Arc::clone(&state.api_service),
+        browse_sender,
+    );
+    setup_scope_selector(
+        &scope_selector,
+        &controller,
+        &search_entry,
+        search_sender,
+        scope,
+        Arc::clone(&state.settings),
+    );
 
     SearchWidgets {
         root: toolbar,
@@ -427,7 +506,7 @@ fn create_data_row(item: &SearchResultItem, ctx: &SearchCtx) -> ListBoxRow {
     picture.set_size_request(64, 64);
     picture.add_css_class("thumbnail");
 
-    let row_box = GtkBox::new(Horizontal, 16);
+    let row_box = Box::new(Horizontal, 16);
     row_box.set_margin_top(12);
     row_box.set_margin_bottom(12);
     row_box.set_margin_start(16);
@@ -484,8 +563,8 @@ fn attach_cover_art(item: &SearchResultItem, picture: &Picture, ctx: &SearchCtx)
 }
 
 /// Builds the info box containing title and subtitle labels.
-fn build_info_box(item: &SearchResultItem) -> GtkBox {
-    let info_box = GtkBox::new(Vertical, 2);
+fn build_info_box(item: &SearchResultItem) -> Box {
+    let info_box = Box::new(Vertical, 2);
     info_box.set_hexpand(true);
     info_box.set_valign(Center);
 
@@ -516,7 +595,7 @@ fn build_info_box(item: &SearchResultItem) -> GtkBox {
 }
 
 /// Builds the explicit content indicator ("E" label).
-fn build_explicit_indicator(item: &SearchResultItem) -> GtkBox {
+fn build_explicit_indicator(item: &SearchResultItem) -> Box {
     let is_explicit = match item {
         SearchResultItem::Track { is_explicit, .. }
         | SearchResultItem::Album { is_explicit, .. }
@@ -524,7 +603,7 @@ fn build_explicit_indicator(item: &SearchResultItem) -> GtkBox {
         SearchResultItem::Artist { .. } => false,
     };
 
-    let container = GtkBox::new(Vertical, 0);
+    let container = Box::new(Vertical, 0);
     let label = Label::new(Some("E"));
     label.set_halign(Center);
     label.set_valign(Center);
@@ -540,7 +619,7 @@ fn build_explicit_indicator(item: &SearchResultItem) -> GtkBox {
 }
 
 /// Builds the Hi-Res audio indicator icon.
-fn build_hires_indicator(item: &SearchResultItem) -> GtkBox {
+fn build_hires_indicator(item: &SearchResultItem) -> Box {
     let is_hires = match item {
         SearchResultItem::Track {
             bit_depth,
@@ -555,7 +634,7 @@ fn build_hires_indicator(item: &SearchResultItem) -> GtkBox {
         _ => false,
     };
 
-    let container = GtkBox::new(Vertical, 0);
+    let container = Box::new(Vertical, 0);
     let icon = Image::builder()
         .halign(Center)
         .valign(Center)
@@ -616,7 +695,7 @@ fn create_split_button(item: &SearchResultItem, ctx: &SearchCtx) -> SplitButton 
         .css_classes(["model"])
         .build();
 
-    let popover_box = GtkBox::new(Vertical, 0);
+    let popover_box = Box::new(Vertical, 0);
     popover_box.append(&queue_button);
 
     let popover = Popover::builder().child(&popover_box).build();
@@ -912,7 +991,7 @@ fn set_fallback_icon(picture: &Picture, is_artist: bool) {
     };
 
     if let Some(parent) = picture.parent()
-        && let Ok(box_) = parent.downcast::<GtkBox>()
+        && let Ok(box_) = parent.downcast::<Box>()
     {
         box_.remove(picture);
 
@@ -1087,6 +1166,33 @@ fn quality_string(bit_depth: i32, sampling_rate: f64) -> String {
     } else {
         String::new()
     }
+}
+
+/// Finds an album ID at the given `ListBox` row position (accounting for section headers).
+fn find_album_at_position(items: &[SearchResultItem], row_index: u32) -> Option<&str> {
+    let mut pos = 0u32;
+    let mut current_category: Option<SearchCategory> = None;
+    for item in items {
+        let category = match item {
+            SearchResultItem::Track { .. } => SearchCategory::Tracks,
+            SearchResultItem::Album { .. } => SearchCategory::Albums,
+            SearchResultItem::Artist { .. } => SearchCategory::Artists,
+            SearchResultItem::Playlist { .. } => SearchCategory::Playlists,
+        };
+        if current_category != Some(category) {
+            current_category = Some(category);
+            pos += 1;
+        }
+        if pos != row_index {
+            pos += 1;
+            continue;
+        }
+        let SearchResultItem::Album { id, .. } = item else {
+            return None;
+        };
+        return Some(id.as_str());
+    }
+    None
 }
 
 /// Sets up the search event receiver to update the list box.

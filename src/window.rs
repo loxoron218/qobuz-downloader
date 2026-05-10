@@ -1,6 +1,6 @@
 //! Main application window.
 
-use std::sync::Arc;
+use std::{cell::RefCell, collections::HashMap, sync::Arc};
 
 use {
     async_channel::{Receiver, Sender, unbounded},
@@ -27,8 +27,12 @@ use crate::{
             perform_keyring_login,
         },
     },
+    browse::{
+        BrowseEvent::{self, AlbumMeta, AlbumTracks, Error},
+        album_view,
+    },
     dashboard,
-    download::manager::DownloadManager,
+    download::{manager::DownloadManager, progress::DownloadCommand},
     preferences::{
         dialog,
         settings::{AppSettings, save_settings},
@@ -57,6 +61,7 @@ pub fn build_window(app: &Application, state: &AppState) -> ApplicationWindow {
     window.set_default_size(width, height);
 
     let (auth_sender, auth_receiver) = unbounded::<AuthEvent>();
+    let (browse_sender, browse_receiver) = unbounded::<BrowseEvent>();
 
     let download_manager = DownloadManager::new(Arc::clone(&state.api_service));
 
@@ -72,7 +77,7 @@ pub fn build_window(app: &Application, state: &AppState) -> ApplicationWindow {
 
     nav_view.add(&dashboard_page);
 
-    let search_widgets = search_view::build(state, download_manager.cmd_sender());
+    let search_widgets = search_view::build(state, download_manager.cmd_sender(), browse_sender);
     search_widgets.setup_esc_navigation(&nav_view);
     let search_page = NavigationPage::new(&search_widgets.root, "Search");
 
@@ -118,6 +123,12 @@ pub fn build_window(app: &Application, state: &AppState) -> ApplicationWindow {
     }
 
     setup_auth_receiver(state, &toolbar, &nav_view, &login_widgets, auth_receiver);
+    setup_browse_receiver(
+        state,
+        &nav_view,
+        browse_receiver,
+        download_manager.cmd_sender(),
+    );
 
     download_manager.start_worker();
 
@@ -233,6 +244,64 @@ fn attempt_keyring_login(state: &AppState, sender: &Sender<AuthEvent>) {
             warn!(error = %err, "Failed to send auth event, receiver likely dropped");
         }
     });
+}
+
+/// Sets up the browse event receiver to show detail views on album navigation.
+fn setup_browse_receiver(
+    state: &AppState,
+    nav_view: &NavigationView,
+    receiver: Receiver<BrowseEvent>,
+    cmd_sender: Sender<DownloadCommand>,
+) {
+    let nav_view = nav_view.clone();
+    let state = state.clone();
+    let cmd_sender = cmd_sender;
+    let pending_albums = RefCell::new(HashMap::<String, album_view::AlbumDetailWidgets>::new());
+
+    MainContext::default().spawn_local(async move {
+        while let Ok(event) = receiver.recv().await {
+            handle_browse_event(event, &state, &cmd_sender, &nav_view, &pending_albums);
+        }
+    });
+}
+
+/// Handles a browse event by pushing the album view or logging errors.
+fn handle_browse_event(
+    event: BrowseEvent,
+    state: &AppState,
+    cmd_sender: &Sender<DownloadCommand>,
+    nav_view: &NavigationView,
+    pending_albums: &RefCell<HashMap<String, album_view::AlbumDetailWidgets>>,
+) {
+    match event {
+        AlbumMeta { album } => {
+            let album_id = album.id.clone().unwrap_or_default();
+            let widgets = album_view::build_meta(&album);
+            pending_albums
+                .borrow_mut()
+                .insert(album_id, widgets.clone());
+            let page = NavigationPage::new(&widgets.root, "Album");
+            nav_view.push(&page);
+        }
+        AlbumTracks { album, tracks } => {
+            let album_id = album.id.clone().unwrap_or_default();
+            let Some(widgets) = pending_albums.borrow_mut().remove(&album_id) else {
+                error!(album_id, "Received tracks for unknown album page");
+                return;
+            };
+            album_view::populate_tracks(
+                &widgets,
+                &album,
+                &tracks,
+                Arc::clone(&state.settings),
+                cmd_sender.clone(),
+            );
+        }
+        Error { context, error } => {
+            error!(context, error, "Browse error");
+        }
+        _ => {}
+    }
 }
 
 /// Creates a logout callback that switches the toolbar content back to the login view.

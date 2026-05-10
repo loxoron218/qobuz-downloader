@@ -4,12 +4,12 @@ use std::{collections::HashMap, sync::Arc};
 
 use {
     async_channel::Sender,
-    libadwaita::{gio::spawn_blocking, glib::Bytes, gtk::gdk::Texture},
+    libadwaita::{gio::spawn_blocking, gtk::gdk::Texture},
     parking_lot::Mutex,
-    reqwest::get,
-    tokio::runtime::Runtime,
     tracing::warn,
 };
+
+use crate::cover_art::{bytes_to_texture, fetch_image_bytes};
 
 /// In-memory cache of cover art textures keyed by URL.
 #[derive(Clone)]
@@ -67,35 +67,6 @@ fn load_and_cache_texture(
 
 /// Fetches an image from a URL and converts it to a GDK texture.
 fn fetch_texture(url: &str) -> Option<Texture> {
-    let rt = match Runtime::new() {
-        Ok(rt) => rt,
-        Err(e) => {
-            warn!(error = %e, url = %url, "Failed to create tokio runtime for cover art fetch");
-            return None;
-        }
-    };
-    rt.block_on(async {
-        let response = match get(url).await {
-            Ok(r) => r,
-            Err(e) => {
-                warn!(error = %e, url = %url, "Failed to fetch cover art image");
-                return None;
-            }
-        };
-        let bytes = match response.bytes().await {
-            Ok(b) => b,
-            Err(e) => {
-                warn!(error = %e, url = %url, "Failed to read cover art response bytes");
-                return None;
-            }
-        };
-        let glib_bytes = Bytes::from_owned(bytes);
-        match Texture::from_bytes(&glib_bytes) {
-            Ok(texture) => Some(texture),
-            Err(e) => {
-                warn!(error = %e, url = %url, "Failed to create texture from cover art bytes");
-                None
-            }
-        }
-    })
+    let bytes = fetch_image_bytes(url)?;
+    bytes_to_texture(bytes)
 }

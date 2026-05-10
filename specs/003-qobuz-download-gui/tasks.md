@@ -114,11 +114,11 @@
 
 ### Implementation for User Story 2
 
-- [ ] T030 [US2] Implement BrowseEvent enum (Album { album }, Artist { artist }, Playlist { playlist }, Error { context, error }) in src/browse/mod.rs
-- [ ] T031 [US2] Implement album detail view in src/browse/album_view.rs: AdwToolbarView with back navigation, album cover (GtkPicture), artist/genre/release date labels, track listing (GtkListView with track number/title/duration), quality selector, download album button
-- [ ] T032 [US2] Implement album browsing via gio::spawn_blocking in src/browse/mod.rs: load album details from API, send BrowseEvent::Album via glib channel, push album_view onto NavigationView in src/window.rs
-- [ ] T033 [US2] Add batch album download to src/download/manager.rs: enqueue all album tracks as individual DownloadCommand::Enqueue with shared album metadata, report per-track and overall progress
-- [ ] T034 [US2] Implement album folder naming ("Artist - Album Title") and track file naming ("TrackNumber - Title.ext") with quality-based extension in src/download/worker.rs
+- [X] T030 [US2] Implement BrowseEvent enum (Album { album }, Artist { artist }, Playlist { playlist }, Error { context, error }) in src/browse/mod.rs
+- [X] T031 [US2] Implement album detail view in src/browse/album_view.rs: AdwToolbarView with back navigation, album cover (GtkPicture), artist/genre/release date labels, track listing (GtkListView with track number/title/duration), quality selector, download album button
+- [X] T032 [US2] Implement album browsing via gio::spawn_blocking in src/browse/mod.rs: load album details from API, send BrowseEvent::Album via glib channel, push album_view onto NavigationView in src/window.rs
+- [X] T033 [US2] Add batch album download to src/download/manager.rs: enqueue all album tracks as individual DownloadCommand::Enqueue with shared album metadata, report per-track and overall progress
+- [X] T034 [US2] Implement album folder naming ("Artist - Album Title") and track file naming ("TrackNumber - Title.ext") with quality-based extension in src/download/worker.rs
 
 **Checkpoint**: Album browsing and downloading is fully functional — users can view album details and download complete albums with proper organization.
 

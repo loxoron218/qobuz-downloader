@@ -11,8 +11,9 @@ use {
     chrono::Local,
     libadwaita::{
         PreferencesGroup, StatusPage,
+        gdk::Texture,
         gio::{ListStore, spawn_blocking},
-        glib::{BoxedAnyObject, Bytes, MainContext, Object},
+        glib::{BoxedAnyObject, MainContext, Object},
         gtk::{
             Align::{Center, Start},
             Box, Button,
@@ -21,27 +22,27 @@ use {
             Orientation::{Horizontal, Vertical},
             PolicyType::Automatic,
             ProgressBar, ScrolledWindow, SignalListItemFactory, Stack, Widget,
-            gdk::Texture,
             pango::EllipsizeMode::End,
             prelude::{Cast, IsA},
         },
         prelude::{BoxExt, ButtonExt, ListItemExt, ListModelExt, PreferencesGroupExt, WidgetExt},
     },
     parking_lot::Mutex,
-    reqwest::get,
-    tokio::runtime::Runtime,
-    tracing::{error, warn},
+    tracing::error,
     uuid::Uuid,
 };
 
-use crate::download::progress::{
-    DownloadCommand::{self, Cancel},
-    DownloadEvent::{self, Completed, Failed, Progress, Started},
-    DownloadRowData,
-    DownloadStatus::{
-        Active, Cancelled, Completed as StatusCompleted, Failed as ItemFailed, Queued,
+use crate::{
+    cover_art::{bytes_to_texture, fetch_image_bytes},
+    download::progress::{
+        DownloadCommand::{self, Cancel},
+        DownloadEvent::{self, Completed, Failed, Progress, Started},
+        DownloadRowData,
+        DownloadStatus::{
+            Active, Cancelled, Completed as StatusCompleted, Failed as ItemFailed, Queued,
+        },
+        DownloadTask, cancel_all_tasks,
     },
-    DownloadTask, cancel_all_tasks,
 };
 
 /// Shared mapping from list-item address to the bound task ID for cancel buttons.
@@ -502,33 +503,13 @@ async fn apply_cover_texture(rx: Receiver<Vec<u8>>, image: Image, boxed: BoxedAn
     let Ok(bytes) = rx.recv().await else {
         return;
     };
-    let glib_bytes = Bytes::from_owned(bytes);
-    let Ok(tex) = Texture::from_bytes(&glib_bytes) else {
+    let Some(tex) = bytes_to_texture(bytes) else {
         return;
     };
     image.set_paintable(Some(&tex));
     image.set_pixel_size(72);
     let mut data = boxed.borrow_mut::<DownloadRowData>();
     data.texture = Some(tex);
-}
-
-/// Fetches image bytes from a URL using a tokio runtime on a background thread.
-fn fetch_image_bytes(url: &str) -> Option<Vec<u8>> {
-    if url.is_empty() || !url.starts_with("http") {
-        return None;
-    }
-
-    let rt = match Runtime::new() {
-        Ok(rt) => rt,
-        Err(e) => {
-            warn!(error = %e, url = %url, "Failed to create tokio runtime for cover fetch");
-            return None;
-        }
-    };
-    rt.block_on(async {
-        let bytes = get(url).await.ok()?.bytes().await.ok()?;
-        Some(bytes.to_vec())
-    })
 }
 
 /// Handles a download event and updates the model.

@@ -325,16 +325,17 @@ where
         let mut api = api_service.lock();
         match item {
             Album { album_id, .. } => {
-                let paths = api
-                    .download_album(album_id, format_id, output_dir, None, None)
+                let album = api
+                    .get_album(album_id, Some("track_ids"))
                     .map_err(AppError::from)?;
-                let track_count = u32::try_from(paths.len()).unwrap_or_default();
-                let path = paths
-                    .into_iter()
-                    .next()
-                    .ok_or_else(|| Download("No tracks downloaded".to_string()))?;
-                (track_count > 1).then(|| progress_callback(1, track_count));
-                Ok(path)
+                let track_ids = album.track_ids.unwrap_or_default();
+                download_album_tracks(
+                    &mut api,
+                    &track_ids,
+                    format_id,
+                    output_dir,
+                    &progress_callback,
+                )
             }
             Artist { artist_id, .. } => execute_artist_download(
                 &mut api,
@@ -380,6 +381,46 @@ fn extract_playlist_track_ids(
         .map(|items| items.into_iter().filter_map(|t| t.id).collect())
         .filter(|ids: &Vec<i32>| !ids.is_empty())
         .ok_or_else(|| Download("No tracks in playlist".to_string()))
+}
+
+/// Downloads all tracks from an album.
+///
+/// # Arguments
+///
+/// * `api` - API service reference
+/// * `track_ids` - List of track IDs to download
+/// * `format_id` - Audio format ID for download
+/// * `output_dir` - Output directory for downloaded files
+/// * `progress_callback` - Called after each track download with (completed, total)
+///
+/// # Errors
+///
+/// Returns `Download` if no tracks could be downloaded.
+fn download_album_tracks<F>(
+    api: &mut QobuzApiService,
+    track_ids: &[i32],
+    format_id: i32,
+    output_dir: &Path,
+    progress_callback: &F,
+) -> Result<PathBuf, AppError>
+where
+    F: Fn(u32, u32),
+{
+    let total = u32::try_from(track_ids.len()).unwrap_or_default();
+    let mut last_path: Option<PathBuf> = None;
+    for (i, &tid) in track_ids.iter().enumerate() {
+        match api.download_track(tid, format_id, output_dir, None) {
+            Ok(path) => {
+                last_path = Some(path);
+            }
+            Err(e) => {
+                error!(track_id = tid, error = %e, "Failed to download album track");
+            }
+        }
+        let completed = u32::try_from(i + 1).unwrap_or(total);
+        progress_callback(completed, total);
+    }
+    last_path.ok_or_else(|| Download("No tracks downloaded".to_string()))
 }
 
 /// Downloads all tracks from a playlist.
