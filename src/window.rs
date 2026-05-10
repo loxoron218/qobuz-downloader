@@ -112,7 +112,7 @@ pub fn build_window(app: &Application, state: &AppState) -> ApplicationWindow {
         let login_root_for_logout = login_widgets.root.clone();
         settings_button.connect_clicked(move |_| {
             let on_logout = make_logout_callback(&toolbar_for_logout, &login_root_for_logout);
-            let dialog = dialog::build(&state_for_dialog, on_logout);
+            let dialog = dialog::build(&state_for_dialog, on_logout, &window_for_dialog);
             dialog.present(Some(&window_for_dialog));
         });
     }

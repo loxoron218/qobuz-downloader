@@ -132,9 +132,9 @@
 
 ### Implementation for User Story 5
 
-- [ ] T035 [US5] Implement AdwPreferencesDialog in src/preferences/dialog.rs: AdwPreferencesPage with AdwPreferencesGroup for download settings (directoryFileChooserRow, quality AdwComboRow), credentials group (logout button)
-- [ ] T036 [US5] Wire preferences changes to AppSettings: save on change via src/preferences/settings.rs, update AppState settings mutex, reflect quality change in download enqueue defaults
-- [ ] T037 [US5] Wire preferences module in src/preferences/mod.rs: add preferences button (gear icon) to window header bar in src/window.rs, connect to preferences dialog, connect logout to auth/keyring credential deletion and login view transition
+- [X] T035 [US5] Implement AdwPreferencesDialog in src/preferences/dialog.rs: AdwPreferencesPage with AdwPreferencesGroup for download settings (directoryFileChooserRow, quality AdwComboRow), credentials group (logout button)
+- [X] T036 [US5] Wire preferences changes to AppSettings: save on change via src/preferences/settings.rs, update AppState settings mutex, reflect quality change in download enqueue defaults
+- [X] T037 [US5] Wire preferences module in src/preferences/mod.rs: add preferences button (gear icon) to window header bar in src/window.rs, connect to preferences dialog, connect logout to auth/keyring credential deletion and login view transition
 
 **Checkpoint**: Preferences are fully functional — users can configure all settings and changes take effect immediately or on next use.
 
