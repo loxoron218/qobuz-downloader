@@ -17,7 +17,7 @@ Build a GNOME/Libadwaita desktop application for downloading music from Qobuz. T
 **Target Platform**: Linux desktop with GNOME/Libadwaita
 **Project Type**: Desktop GUI application
 **Performance Goals**: Search results within 3s, UI remains responsive during downloads, progress updates within 1s
-**Constraints**: Max 3 concurrent downloads, no download resume, blocking API library calls must not freeze UI
+**Constraints**: Max 3 concurrent downloads, no download resume, blocking API library calls must not freeze UI, SIGTERM/SIGINT handlers cancel active downloads and clean up partial files
 **Scale/Scope**: Single-user desktop app, ~15 UI views/dialogs, local filesystem I/O only
 
 ## Constitution Check

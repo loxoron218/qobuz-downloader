@@ -109,7 +109,7 @@ A user wants to see what is currently downloading, cancel a download, and view r
 ### Edge Cases
 
 - When the user's subscription does not support a requested quality level → Display an error toast indicating the quality is unavailable for their subscription tier, and offer the highest available quality as an alternative
-- When the application is closed during a download → Interrupted downloads are not resumed on restart; partial files with `.part` extension are cleaned up on the next application startup and the download must be re-initiated by the user (see FR-012a)
+- When the application is closed or terminated (SIGTERM/SIGINT) during a download → Active downloads are cancelled, partial files with `.part` extension are cleaned up immediately; orphaned `.part` files are also scanned and removed on the next application startup; the download must be re-initiated by the user (see FR-012a)
 - When disk space runs out during a multi-track album download → Stop the current download, clean up partial files, display an error toast indicating insufficient disk space, and mark remaining queued tracks as failed
 - When the Qobuz API is temporarily unavailable or rate-limited → Retry with exponential backoff (up to 3 retries, 2s/4s/8s delays); if all retries fail, mark the download as failed with a clear error message
 - When a track is not available for download (DRM-restricted or geo-blocked) → Display an error toast indicating the track is unavailable with the reason, and skip to the next track in batch downloads
@@ -125,7 +125,7 @@ A user wants to see what is currently downloading, cancel a download, and view r
 - **FR-002**: The application MUST display search results with relevant metadata including title, artist name, album name, duration, quality indicators (Hi-Res badge for FLAC 24-bit), and cover art thumbnails
 - **FR-003**: The application MUST allow users to download individual tracks in a user-selected quality level (MP3 320kbps, FLAC 16/44.1, FLAC 24/96, FLAC 24/192). For batch downloads (albums, playlists), all tracks use the same selected quality level.
 - **FR-004**: The application MUST allow users to download full albums with all tracks, organized into folders named "Artist - Album Title" with tracks named "TrackNumber - Title.ext" (see US2 Acceptance Scenario #3)
-- **FR-005**: The application MUST embed complete metadata tags (title, artist, album, genre, track number, year, ISRC, cover art) into downloaded files
+- **FR-005**: The application MUST embed complete metadata tags (title, artist, album, genre, track number, year, ISRC, cover art) into downloaded files (delegated to `qobuz-api-rust-refactor`'s metadata embedder module)
 - **FR-006**: The application MUST provide download progress indication with updates within 1 second (SC-007), per-file and overall for batch downloads
 - **FR-007**: The application MUST authenticate users against the Qobuz API using email and password credentials
 - **FR-008**: The application MUST securely store authentication credentials for automatic re-login between sessions using GNOME Keyring via oo7 (Secret Service API)
