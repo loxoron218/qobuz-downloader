@@ -931,7 +931,7 @@ fn fetch_missing_images(ctx: &SearchCtx) {
 
     spawn(move || {
         for (id, is_artist) in items_to_fetch {
-            send_cover_url(&tx, &api_service, id, is_artist);
+            send_cover_url(&tx, &api_service, &id, is_artist);
         }
     });
 
@@ -975,7 +975,13 @@ fn find_picture(
     playlist_picture_map: &Rc<RefCell<HashMap<String, Picture>>>,
 ) -> Option<Picture> {
     if is_artist {
-        let artist_id = id.parse::<i32>().ok()?;
+        let artist_id = match id.parse::<i32>() {
+            Ok(id) => id,
+            Err(e) => {
+                warn!(error = %e, id = %id, "Failed to parse artist ID in find_picture");
+                return None;
+            }
+        };
         artist_picture_map.borrow().get(&artist_id).cloned()
     } else {
         playlist_picture_map.borrow().get(id).cloned()
@@ -1026,25 +1032,40 @@ fn update_picture_with_cover(
 fn send_cover_url(
     tx: &Sender<(String, Option<String>, bool)>,
     api_service: &Arc<Mutex<QobuzApiService>>,
-    id: String,
+    id: &str,
     is_artist: bool,
 ) {
     let url = if is_artist {
-        fetch_artist_cover_url(api_service, &id)
+        fetch_artist_cover_url(api_service, id)
     } else {
-        fetch_playlist_cover_url(api_service, &id)
+        fetch_playlist_cover_url(api_service, id)
     };
 
-    if tx.send_blocking((id, url, is_artist)).is_err() {
-        warn!("Failed to send cover URL to channel");
+    if tx
+        .send_blocking((id.to_string(), url.clone(), is_artist))
+        .is_err()
+    {
+        warn!(id = %id, url = ?url, "Failed to send cover URL to channel");
     }
 }
 
 /// Fetches artist cover URL from API.
 fn fetch_artist_cover_url(api_service: &Arc<Mutex<QobuzApiService>>, id: &str) -> Option<String> {
-    let artist_id = id.parse::<i32>().ok()?;
+    let artist_id = match id.parse::<i32>() {
+        Ok(id) => id,
+        Err(e) => {
+            warn!(error = %e, id = %id, "Failed to parse artist ID for cover URL");
+            return None;
+        }
+    };
     let api = api_service.lock();
-    let artist = api.get_artist(artist_id, None).ok()?;
+    let artist = match api.get_artist(artist_id, None) {
+        Ok(a) => a,
+        Err(e) => {
+            warn!(error = %e, artist_id = %artist_id, "Failed to fetch artist for cover URL");
+            return None;
+        }
+    };
     let img = artist.image?;
     let url = img.thumbnail.clone().or_else(|| img.small.clone())?;
     let result = Some(url);
@@ -1055,7 +1076,13 @@ fn fetch_artist_cover_url(api_service: &Arc<Mutex<QobuzApiService>>, id: &str) -
 /// Fetches playlist cover URL from API.
 fn fetch_playlist_cover_url(api_service: &Arc<Mutex<QobuzApiService>>, id: &str) -> Option<String> {
     let api = api_service.lock();
-    let playlist = api.get_playlist(id, None).ok()?;
+    let playlist = match api.get_playlist(id, None) {
+        Ok(p) => p,
+        Err(e) => {
+            warn!(error = %e, playlist_id = %id, "Failed to fetch playlist for cover URL");
+            return None;
+        }
+    };
     let img = playlist.image?;
     let url = img.thumbnail.clone().or_else(|| img.small.clone())?;
     let result = Some(url);

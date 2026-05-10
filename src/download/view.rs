@@ -311,10 +311,10 @@ fn bind_download_row(list_item_obj: &Object, cells: &Rc<RefCell<CancelCellMap>>)
         return;
     };
 
-    let Some(boxed) = list_item
-        .item()
-        .and_then(|obj| obj.downcast::<BoxedAnyObject>().ok())
-    else {
+    let Some(obj) = list_item.item() else {
+        return;
+    };
+    let Ok(boxed) = obj.downcast::<BoxedAnyObject>() else {
         return;
     };
 
@@ -377,20 +377,27 @@ fn bind_download_row(list_item_obj: &Object, cells: &Rc<RefCell<CancelCellMap>>)
 
 /// Returns the first child of a Box cast to T.
 fn first_child_of_box<T: IsA<Widget>>(container: &Box) -> Option<T> {
-    let w = container.first_child()?;
-    w.downcast::<T>().ok()
+    let Ok(w) = container.first_child()?.downcast::<T>() else {
+        return None;
+    };
+    Some(w)
 }
 
 /// Returns the first child of any container cast to T.
 fn first_child_of<T: IsA<Widget>>(container: &impl IsA<Widget>) -> Option<T> {
-    let w = container.first_child()?;
-    w.downcast::<T>().ok()
+    let Ok(w) = container.first_child()?.downcast::<T>() else {
+        return None;
+    };
+    Some(w)
 }
 
 /// Returns the second child of a Box (`first_child` -> `next_sibling`) cast to T.
 fn second_child_of_box<T: IsA<Widget>>(container: &Box) -> Option<T> {
     let w = container.first_child().and_then(|w| w.next_sibling())?;
-    w.downcast::<T>().ok()
+    let Ok(w) = w.downcast::<T>() else {
+        return None;
+    };
+    Some(w)
 }
 
 /// Returns the third child of a Box cast to T.
@@ -399,13 +406,18 @@ fn third_child_of_box<T: IsA<Widget>>(container: &Box) -> Option<T> {
         .first_child()
         .and_then(|w| w.next_sibling())
         .and_then(|w| w.next_sibling())?;
-    w.downcast::<T>().ok()
+    let Ok(w) = w.downcast::<T>() else {
+        return None;
+    };
+    Some(w)
 }
 
 /// Returns the last child of a Box cast to T.
 fn last_child_of_box<T: IsA<Widget>>(container: &Box) -> Option<T> {
-    let w = container.last_child()?;
-    w.downcast::<T>().ok()
+    let Ok(w) = container.last_child()?.downcast::<T>() else {
+        return None;
+    };
+    Some(w)
 }
 
 /// Returns the nth child of a container cast to T.
@@ -414,8 +426,10 @@ fn nth_child_of<T: IsA<Widget>>(container: &impl IsA<Widget>, n: usize) -> Optio
     for _ in 0..n {
         child = child.and_then(|w| w.next_sibling());
     }
-    let w = child?;
-    w.downcast::<T>().ok()
+    let Ok(w) = child?.downcast::<T>() else {
+        return None;
+    };
+    Some(w)
 }
 
 /// Updates the status label text based on the download task state.

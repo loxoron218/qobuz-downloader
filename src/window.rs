@@ -286,7 +286,7 @@ fn handle_browse_event(
         AlbumTracks { album, tracks } => {
             let album_id = album.id.clone().unwrap_or_default();
             let Some(widgets) = pending_albums.borrow_mut().remove(&album_id) else {
-                error!(album_id, "Received tracks for unknown album page");
+                error!(album_id = %album_id, "Received tracks for unknown album page");
                 return;
             };
             album_view::populate_tracks(
@@ -298,7 +298,7 @@ fn handle_browse_event(
             );
         }
         Error { context, error } => {
-            error!(context, error, "Browse error");
+            error!(%context, %error, "Browse error");
         }
         _ => {}
     }

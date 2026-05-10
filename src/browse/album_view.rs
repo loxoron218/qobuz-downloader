@@ -332,7 +332,7 @@ fn fetch_cover_art_blocking(url: &str, tx: &Sender<Vec<u8>>) {
         return;
     };
     if tx.send_blocking(bytes).is_err() {
-        warn!("Failed to send image bytes to channel");
+        warn!(url = %url, "Failed to send image bytes to channel");
     }
 }
 

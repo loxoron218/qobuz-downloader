@@ -102,21 +102,51 @@ fn parse_qobuz_url(input: &str) -> Option<ParsedUrl> {
         return Some(ParsedUrl::Album(trimmed.to_string()));
     }
 
-    let playlist_re =
-        Regex::new(r"https?://(?:www\.|play\.|open\.)?qobuz\.com/(?:[a-z]{2}-[a-z]{2}/)?playlists?/[^/]+/(\d+)")
-            .ok()?;
+    let playlist_re = match Regex::new(
+        r"https?://(?:www\.|play\.|open\.)?qobuz\.com/(?:[a-z]{2}-[a-z]{2}/)?playlists?/[^/]+/(\d+)",
+    ) {
+        Ok(re) => re,
+        Err(e) => {
+            warn!(error = %e, "Failed to compile playlist regex");
+            return None;
+        }
+    };
 
     let album_play_re =
-        Regex::new(r"https?://(?:play\.|open\.)?qobuz\.com/album/([a-zA-Z0-9-]+)").ok()?;
+        match Regex::new(r"https?://(?:play\.|open\.)?qobuz\.com/album/([a-zA-Z0-9-]+)") {
+            Ok(re) => re,
+            Err(e) => {
+                warn!(error = %e, "Failed to compile album play regex");
+                return None;
+            }
+        };
     let track_play_re =
-        Regex::new(r"https?://(?:play\.|open\.)?qobuz\.com/track/([a-zA-Z0-9-]+)").ok()?;
+        match Regex::new(r"https?://(?:play\.|open\.)?qobuz\.com/track/([a-zA-Z0-9-]+)") {
+            Ok(re) => re,
+            Err(e) => {
+                warn!(error = %e, "Failed to compile track play regex");
+                return None;
+            }
+        };
 
     let old_album_re =
-        Regex::new(r"https?://(?:www\.)?qobuz\.com/(?:[a-z]{2}-[a-z]{2}/)?album/[^/]+/(\d+)")
-            .ok()?;
+        match Regex::new(r"https?://(?:www\.)?qobuz\.com/(?:[a-z]{2}-[a-z]{2}/)?album/[^/]+/(\d+)")
+        {
+            Ok(re) => re,
+            Err(e) => {
+                warn!(error = %e, "Failed to compile old album regex");
+                return None;
+            }
+        };
     let old_track_re =
-        Regex::new(r"https?://(?:www\.)?qobuz\.com/(?:[a-z]{2}-[a-z]{2}/)?track/[^/]+/(\d+)")
-            .ok()?;
+        match Regex::new(r"https?://(?:www\.)?qobuz\.com/(?:[a-z]{2}-[a-z]{2}/)?track/[^/]+/(\d+)")
+        {
+            Ok(re) => re,
+            Err(e) => {
+                warn!(error = %e, "Failed to compile old track regex");
+                return None;
+            }
+        };
 
     if let Some(caps) = album_play_re.captures(trimmed)
         && let Some(id) = caps.get(1)
@@ -169,7 +199,13 @@ fn quality_to_combo_index(quality: Quality) -> u32 {
 
 /// Fetches album metadata from the Qobuz API.
 fn fetch_album_meta(api: &QobuzApiService, album_id: &str) -> Option<FetchedMeta> {
-    let album = api.get_album(album_id, None).ok()?;
+    let album = match api.get_album(album_id, None) {
+        Ok(a) => a,
+        Err(e) => {
+            warn!(error = %e, album_id = %album_id, "Failed to fetch album metadata");
+            return None;
+        }
+    };
     let title = album
         .title
         .as_deref()
@@ -191,7 +227,13 @@ fn fetch_album_meta(api: &QobuzApiService, album_id: &str) -> Option<FetchedMeta
 
 /// Fetches track metadata from the Qobuz API.
 fn fetch_track_meta(api: &QobuzApiService, track_id: i32) -> Option<FetchedMeta> {
-    let track = api.get_track(track_id).ok()?;
+    let track = match api.get_track(track_id) {
+        Ok(t) => t,
+        Err(e) => {
+            warn!(error = %e, track_id = %track_id, "Failed to fetch track metadata");
+            return None;
+        }
+    };
     let title = track
         .title
         .as_deref()
@@ -216,7 +258,13 @@ fn fetch_track_meta(api: &QobuzApiService, track_id: i32) -> Option<FetchedMeta>
 
 /// Fetches playlist metadata from the Qobuz API.
 fn fetch_playlist_meta(api: &QobuzApiService, playlist_id: &str) -> Option<FetchedMeta> {
-    let playlist = api.get_playlist(playlist_id, Some("tracks")).ok()?;
+    let playlist = match api.get_playlist(playlist_id, Some("tracks")) {
+        Ok(p) => p,
+        Err(e) => {
+            warn!(error = %e, playlist_id = %playlist_id, "Failed to fetch playlist metadata");
+            return None;
+        }
+    };
     let title = playlist
         .name
         .as_deref()
