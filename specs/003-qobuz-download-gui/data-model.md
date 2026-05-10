@@ -122,6 +122,8 @@ Audio quality selection (wraps API library constants).
 
 Implements: `Display`, `From<Quality> for i32`, `TryFrom<i32> for Quality`
 
+**Location note**: Defined in `src/download/progress.rs` alongside download types, but consumed by `search`, `browse`, and `preferences` modules. A shared `src/types.rs` location was considered; the current placement was chosen because `Quality` is conceptually a download property and co-location with `DownloadProgress` keeps related types together. Downstream modules import via `crate::download::progress::Quality`.
+
 ## Settings Domain
 
 ### `AppSettings`

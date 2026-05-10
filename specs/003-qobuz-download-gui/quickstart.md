@@ -64,7 +64,7 @@ Preferences are accessible via the Preferences dialog (gear icon in header).
 
 - Maximum 3 concurrent downloads
 - Additional downloads are queued and start automatically
-- Existing files in the output directory are skipped with a toast notification
+- Existing files in the download directory are skipped with a toast notification
 
 ## Architecture Diagram
 

@@ -9,7 +9,7 @@
 
 ### User Story 1 - Search and Download a Track (Priority: P1)
 
-A user wants to find a specific song and download it in high quality. The user opens the application, types a song name into the search bar, sees matching results with artwork and metadata, selects the desired track, picks an audio quality, and initiates the download. The download completes and the file appears in the user's chosen output directory with correct metadata tags embedded.
+A user wants to find a specific song and download it in high quality. The user opens the application, types a song name into the search bar, sees matching results with artwork and metadata, selects the desired track, picks an audio quality, and initiates the download. The download completes and the file appears in the user's chosen download directory with correct metadata tags embedded.
 
 **Why this priority**: This is the core value proposition. Without search-and-download, the application serves no purpose. It is the minimum viable workflow.
 
@@ -19,7 +19,7 @@ A user wants to find a specific song and download it in high quality. The user o
 
 1. **Given** the user is on the main screen, **When** they type a query and submit, **Then** results are displayed grouped by type (tracks, albums, artists, playlists) with titles, artists, and thumbnails
 2. **Given** search results are visible, **When** the user selects a track and chooses a quality level, **Then** a download begins and progress is shown in real-time
-3. **Given** a download is in progress, **When** the download completes, **Then** the file is saved to the configured output directory with correct metadata tags and cover art embedded
+3. **Given** a download is in progress, **When** the download completes, **Then** the file is saved to the configured download directory with correct metadata tags and cover art embedded
 4. **Given** a download is in progress, **When** a network error occurs, **Then** the download retries automatically and shows a clear error if it ultimately fails
 
 ---
@@ -30,7 +30,7 @@ A user wants to download an entire album. The user searches for or navigates to 
 
 **Why this priority**: Album downloading is the second most common use case. It builds on P1 by adding batch operations and folder organization, but a user could still get value from single-track downloads alone.
 
-**Independent Test**: Can be tested by searching for a known album, triggering the full download, and verifying all tracks are present in the output directory with correct folder structure and metadata.
+**Independent Test**: Can be tested by searching for a known album, triggering the full download, and verifying all tracks are present in the download directory with correct folder structure and metadata.
 
 **Acceptance Scenarios**:
 
@@ -52,12 +52,12 @@ A first-time user needs to connect their Qobuz account. The user opens the appli
 
 1. **Given** no stored credentials exist, **When** the user launches the application, **Then** a login form is presented requesting email and password
 2. **Given** the user enters valid credentials, **When** they submit, **Then** authentication succeeds and the main interface becomes available
-3. **Given** the user enters invalid credentials, **When** they submit, **Then** a clear error message is displayed without exposing sensitive data
+3. **Given** the user enters invalid credentials, **When** they submit, **Then** a human-readable error message is displayed indicating authentication failure, without echoing the password or revealing which field was incorrect
 4. **Given** credentials were previously saved, **When** the user launches the application, **Then** authentication is performed automatically and the user goes directly to the main interface
 
 ---
 
-### User Story 4 - Browse and Download Playlists (Priority: P3)
+### User Story 4 - Browse and Download Playlists and Artists (Priority: P3)
 
 A user wants to download tracks from a playlist. The user searches for a playlist, sees its tracks and metadata, then downloads selected tracks or the entire playlist.
 
@@ -109,18 +109,19 @@ A user wants to see what is currently downloading, cancel a download, and view r
 ### Edge Cases
 
 - When the user's subscription does not support a requested quality level → Display an error toast indicating the quality is unavailable for their subscription tier, and offer the highest available quality as an alternative
-- When the application is closed during a download → Interrupted downloads are not resumed on restart; partial files are cleaned up and the download must be re-initiated by the user (see FR-012a)
+- When the application is closed during a download → Interrupted downloads are not resumed on restart; partial files with `.part` extension are cleaned up on the next application startup and the download must be re-initiated by the user (see FR-012a)
 - When disk space runs out during a multi-track album download → Stop the current download, clean up partial files, display an error toast indicating insufficient disk space, and mark remaining queued tracks as failed
 - When the Qobuz API is temporarily unavailable or rate-limited → Retry with exponential backoff (up to 3 retries, 2s/4s/8s delays); if all retries fail, mark the download as failed with a clear error message
 - When a track is not available for download (DRM-restricted or geo-blocked) → Display an error toast indicating the track is unavailable with the reason, and skip to the next track in batch downloads
-- How does the system handle duplicate downloads (same track/album downloaded twice)? → Skip files that already exist in the output directory and display a toast notification to the user (see FR-013b)
+- How does the system handle duplicate downloads (same track/album downloaded twice)? → Skip files that already exist in the download directory and display a toast notification to the user (see FR-013b)
 - What happens when the user's authentication token expires mid-session? → Automatically re-authenticate silently using stored oo7 credentials; if re-auth fails, prompt user to log in again (see FR-008a)
+- When a search query returns no results → Display an empty-state message indicating no results were found for the query, with a suggestion to try a different search term
 
 ## Requirements *(mandatory)*
 
 ### Functional Requirements
 
-- **FR-001**: The application MUST allow users to search the Qobuz catalog by entering a text query and viewing results categorized by tracks, albums, artists, and playlists (limited to the first page of API results per category, default 25 items per category)
+- **FR-001**: The application MUST allow users to search the Qobuz catalog by entering a text query and viewing results categorized by tracks, albums, artists, and playlists (limited to the first page of API results per category, default 25 items per category; pagination beyond the first page is not supported in v1)
 - **FR-002**: The application MUST display search results with relevant metadata including title, artist name, album name, duration, quality indicators (Hi-Res badge for FLAC 24-bit), and cover art thumbnails
 - **FR-003**: The application MUST allow users to download individual tracks in a user-selected quality level (MP3 320kbps, FLAC 16/44.1, FLAC 24/96, FLAC 24/192). For batch downloads (albums, playlists), all tracks use the same selected quality level.
 - **FR-004**: The application MUST allow users to download full albums with all tracks, organized into folders named "Artist - Album Title" with tracks named "TrackNumber - Title.ext" (see US2 Acceptance Scenario #3)
@@ -131,17 +132,18 @@ A user wants to see what is currently downloading, cancel a download, and view r
 - **FR-008a**: When the authentication token expires mid-session, the application MUST automatically re-authenticate silently using stored credentials; if re-authentication fails, the user MUST be prompted to re-enter credentials
 - **FR-009**: The application MUST allow users to browse album details including full track listings, release information, and cover art
 - **FR-009a**: The application MUST allow users to browse artist details including name, image, and album catalog listing
-- **FR-010**: The application MUST allow users to configure the download output directory
+- **FR-010**: The application MUST allow users to configure the download directory
 - **FR-011**: The application MUST allow users to set a default audio quality for downloads
 - **FR-012**: The application MUST handle download errors with automatic retry (up to 3 retries with exponential backoff: 2s, 4s, 8s) for transient failures (network timeouts, 5xx responses, rate-limit 429) and clear error messages for permanent failures (4xx responses excluding 429)
 - **FR-012a**: Interrupted downloads (app close, network failure) are NOT resumed on restart; partial files are cleaned up and the download must be re-initiated by the user
 - **FR-013**: The application MUST allow users to cancel in-progress downloads
 - **FR-013a**: The application MUST support a maximum of 3 concurrent downloads; additional downloads are queued and started automatically as slots become available
-- **FR-013b**: The application MUST skip downloads for files that already exist in the output directory and display a toast notification informing the user
+- **FR-013b**: The application MUST skip downloads for files that already exist in the download directory and display a toast notification informing the user
 - **FR-014**: The application MUST allow users to download playlists
 - **FR-015**: The application MUST display download history showing completed and failed downloads (in-memory only, cleared on application restart, capped at 100 entries with FIFO eviction)
 - **FR-016**: The application MUST use the existing `qobuz-api-rust-refactor` library for all Qobuz API interactions (search, browse, download, authentication)
 - **FR-017**: The application MUST provide a graphical user interface following GNOME Human Interface Guidelines
+- **FR-018**: The application MUST save and restore window geometry (width, height) between sessions, restoring the previous window dimensions on next launch
 
 ### Key Entities
 
@@ -162,7 +164,7 @@ A user wants to see what is currently downloading, cancel a download, and view r
 - **SC-002**: Search results appear within 3 seconds of submitting a query
 - **SC-003**: All downloaded files contain complete metadata tags and embedded cover art verified by a standard audio player
 - **SC-004**: Album downloads complete with all tracks present in the correct folder structure when no transient errors exceed the retry limit
-- **SC-005**: The application remains responsive during downloads, allowing the user to continue searching and queuing additional downloads
+- **SC-005**: The application remains responsive during downloads (UI thread never blocks for more than 50ms), allowing the user to continue searching and queuing additional downloads without perceptible lag
 - **SC-006**: First-time users can authenticate and complete their first download within 2 minutes
 - **SC-007**: Download progress updates are visible within 1 second of actual progress changes
 
@@ -174,7 +176,7 @@ A user wants to see what is currently downloading, cancel a download, and view r
 - Q: What is the maximum number of concurrent downloads the application should support? → A: 3 concurrent downloads
 - Q: Should downloads that are interrupted (e.g., app closed, network failure) resume on next app launch? → A: No, restart the download (simpler implementation)
 - Q: How should the application handle an expired authentication token mid-session? → A: Auto re-authenticate silently using stored credentials
-- Q: How should the application handle when a user tries to download a track/album that already exists in the output directory? → A: Skip existing files and show a toast notification
+- Q: How should the application handle when a user tries to download a track/album that already exists in the download directory? → A: Skip existing files and show a toast notification
 
 ## Assumptions
 
