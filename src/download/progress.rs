@@ -53,6 +53,15 @@ pub enum DownloadEvent {
         /// Task ID.
         id: Uuid,
     },
+    /// Download progress update (for batch downloads).
+    Progress {
+        /// Task ID.
+        id: Uuid,
+        /// Number of items completed so far.
+        items_completed: u32,
+        /// Total number of items (if known).
+        total_items: Option<u32>,
+    },
 }
 
 /// What is being downloaded.
@@ -137,15 +146,31 @@ pub struct DownloadProgress {
     pub bytes_downloaded: u64,
     /// Total file size (may be unknown).
     pub total_bytes: Option<u64>,
+    /// Number of items completed (for batch downloads).
+    pub items_completed: u32,
+    /// Total number of items (for batch downloads, if known).
+    pub total_items: Option<u32>,
 }
 
 impl DownloadProgress {
     /// Returns the download percentage if total is known.
     pub fn percentage(&self) -> Option<f64> {
-        self.total_bytes.filter(|&total| total > 0).map(|total| {
-            (AsPrimitive::<f64>::as_(self.bytes_downloaded) / AsPrimitive::<f64>::as_(total))
-                * 100.0
-        })
+        if let Some(total) = self.total_bytes.filter(|&total| total > 0) {
+            return Some(
+                (AsPrimitive::<f64>::as_(self.bytes_downloaded) / AsPrimitive::<f64>::as_(total))
+                    * 100.0,
+            );
+        }
+        if let Some(total) = self
+            .total_items
+            .filter(|&total| total > 0 && self.items_completed > 0)
+        {
+            return Some(
+                (AsPrimitive::<f64>::as_(self.items_completed) / AsPrimitive::<f64>::as_(total))
+                    * 100.0,
+            );
+        }
+        None
     }
 }
 

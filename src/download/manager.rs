@@ -23,7 +23,7 @@ use {
 use crate::{
     download::progress::{
         DownloadCommand::{self, Cancel, Enqueue, Shutdown},
-        DownloadEvent::{self, Completed, Failed, Started},
+        DownloadEvent::{self, Completed, Failed, Progress, Started},
         DownloadItem::{self, Album, Artist, Playlist, Track},
         DownloadStatus::{Active, Cancelled, Completed as StatusCompleted, Failed as ItemFailed},
         DownloadTask, Quality,
@@ -212,14 +212,33 @@ fn handle_enqueued_download(
         t.status = Active;
     }
 
+    let evt_sender_clone = evt_sender.clone();
+    let tasks_clone = Arc::clone(tasks);
+    let progress_callback = move |items_completed: u32, total_items: u32| {
+        if let Err(err) = evt_sender_clone.send_blocking(Progress {
+            id: task_id,
+            items_completed,
+            total_items: Some(total_items),
+        }) {
+            error!(error = %err, "Failed to send progress event");
+        }
+        if let Some(t) = tasks_clone.lock().get_mut(&task_id) {
+            t.progress.items_completed = items_completed;
+            t.progress.total_items = Some(total_items);
+        }
+    };
+
     let result = execute_download(
         api_service,
         &task.item,
         task.quality,
         task.output_dir.as_path(),
+        progress_callback,
     );
 
-    handle_download_result(evt_sender, tasks, task_id, result);
+    let evt_sender_fin = evt_sender.clone();
+    let tasks_fin = Arc::clone(tasks);
+    handle_download_result(&evt_sender_fin, &tasks_fin, task_id, result);
 }
 
 /// Sends a download event, logging any error if the receiver was dropped.
@@ -278,15 +297,28 @@ fn handle_cancel(
 
 /// Executes a single download using the API service.
 ///
+/// # Arguments
+///
+/// * `api_service` - API service reference
+/// * `item` - Download item to fetch
+/// * `quality` - Audio format ID for download
+/// * `output_dir` - Output directory for downloaded files
+/// * `progress_callback` - Called after each item in batch downloads (`items_completed`,
+///   `total_items`)
+///
 /// # Errors
 ///
 /// Returns `Api` if the download fails.
-fn execute_download(
+fn execute_download<F>(
     api_service: &Arc<Mutex<QobuzApiService>>,
     item: &DownloadItem,
     quality: Quality,
     output_dir: &Path,
-) -> Result<PathBuf, AppError> {
+    progress_callback: F,
+) -> Result<PathBuf, AppError>
+where
+    F: Fn(u32, u32) + Send + Sync + 'static,
+{
     let format_id: i32 = quality.into();
 
     {
@@ -296,21 +328,32 @@ fn execute_download(
                 let paths = api
                     .download_album(album_id, format_id, output_dir, None, None)
                     .map_err(AppError::from)?;
-                paths
+                let track_count = u32::try_from(paths.len()).unwrap_or_default();
+                let path = paths
                     .into_iter()
                     .next()
-                    .ok_or_else(|| Download("No tracks downloaded".to_string()))
+                    .ok_or_else(|| Download("No tracks downloaded".to_string()))?;
+                (track_count > 1).then(|| progress_callback(1, track_count));
+                Ok(path)
             }
-            Artist { artist_id, .. } => {
-                execute_artist_download(&mut api, *artist_id, format_id, output_dir)
-            }
-            Playlist {
-                playlist_id,
-                title: _,
-                ..
-            } => {
+            Artist { artist_id, .. } => execute_artist_download(
+                &mut api,
+                *artist_id,
+                format_id,
+                output_dir,
+                progress_callback,
+            ),
+            Playlist { playlist_id, .. } => {
                 let track_ids = extract_playlist_track_ids(&api, playlist_id)?;
-                download_playlist_tracks(&mut api, track_ids, format_id, output_dir)
+                let total = u32::try_from(track_ids.len()).unwrap_or_default();
+                let progress_callback = move |completed: u32| progress_callback(completed, total);
+                download_playlist_tracks(
+                    &mut api,
+                    track_ids,
+                    format_id,
+                    output_dir,
+                    progress_callback,
+                )
             }
             Track { track_id, .. } => api
                 .download_track(*track_id, format_id, output_dir, None)
@@ -347,23 +390,40 @@ fn extract_playlist_track_ids(
 /// * `track_ids` - List of track IDs to download
 /// * `format_id` - Audio format ID for download
 /// * `output_dir` - Output directory for downloaded files
+/// * `progress_callback` - Called after each track download with (completed, total)
 ///
 /// # Errors
 ///
 /// Returns `Download` if no tracks could be downloaded.
-fn download_playlist_tracks(
+fn download_playlist_tracks<F>(
     api: &mut QobuzApiService,
     track_ids: Vec<i32>,
     format_id: i32,
     output_dir: &Path,
-) -> Result<PathBuf, AppError> {
+    progress_callback: F,
+) -> Result<PathBuf, AppError>
+where
+    F: Fn(u32) + Send + Sync + 'static,
+{
     let mut last_path = None;
+    let mut completed = 0;
     for track_id in track_ids {
         match api.download_track(track_id, format_id, output_dir, None) {
             Ok(path) => last_path = Some(path),
+            Err(e)
+                if e.to_string().contains("416")
+                    || e.to_string().contains("Range Not Satisfiable") =>
+            {
+                info!(
+                    track_id,
+                    "File unavailable or already exists (416), skipping"
+                );
+            }
             Err(e) if last_path.is_none() => return Err(AppError::from(e)),
             Err(_) => {}
         }
+        completed += 1;
+        progress_callback(completed);
     }
     last_path.ok_or_else(|| Download("No tracks downloaded".to_string()))
 }
@@ -376,17 +436,22 @@ fn download_playlist_tracks(
 /// * `artist_id` - Artist ID
 /// * `format_id` - Audio format ID for download
 /// * `output_dir` - Output directory for downloaded files
+/// * `progress_callback` - Called after each album download with (completed, total)
 ///
 /// # Errors
 ///
 /// Returns `Api` if the release list API call fails, or `Download` if no albums could be
 /// downloaded.
-fn execute_artist_download(
+fn execute_artist_download<F>(
     api: &mut QobuzApiService,
     artist_id: i32,
     format_id: i32,
     output_dir: &Path,
-) -> Result<PathBuf, AppError> {
+    progress_callback: F,
+) -> Result<PathBuf, AppError>
+where
+    F: Fn(u32, u32) + Send + Sync + 'static,
+{
     let releases = api
         .get_release_list(artist_id, Some(50), None)
         .map_err(AppError::from)?;
@@ -394,7 +459,9 @@ fn execute_artist_download(
     if album_items.is_empty() {
         return Err(Download("No releases found for artist".to_string()));
     }
+    let total = u32::try_from(album_items.len()).unwrap_or_default();
     let mut first_path: Option<PathBuf> = None;
+    let mut completed = 0;
     for album in &album_items {
         let Some(album_id) = &album.id else {
             continue;
@@ -403,10 +470,18 @@ fn execute_artist_download(
             Ok(paths) => {
                 first_path = first_path.or_else(|| paths.into_iter().next());
             }
+            Err(e)
+                if e.to_string().contains("416")
+                    || e.to_string().contains("Range Not Satisfiable") =>
+            {
+                info!(album = %album_id, "Album unavailable or already exists (416), skipping");
+            }
             Err(e) => {
                 error!(error = %e, album = %album_id, "Skipping failed album in artist download");
             }
         }
+        completed += 1;
+        progress_callback(completed, total);
     }
     first_path.ok_or_else(|| Download("No albums downloaded for artist".to_string()))
 }

@@ -36,7 +36,7 @@ use {
 
 use crate::download::progress::{
     DownloadCommand::{self, Cancel},
-    DownloadEvent::{self, Completed, Failed, Started},
+    DownloadEvent::{self, Completed, Failed, Progress, Started},
     DownloadRowData,
     DownloadStatus::{
         Active, Cancelled, Completed as StatusCompleted, Failed as ItemFailed, Queued,
@@ -553,6 +553,19 @@ fn handle_event(
             if model.n_items() > 0 {
                 stack.set_visible_child_name("content");
             }
+        }
+        Progress {
+            id,
+            items_completed,
+            total_items,
+        } => {
+            let mut map = tasks.lock();
+            if let Some(task) = map.get_mut(id) {
+                task.progress.items_completed = *items_completed;
+                task.progress.total_items = *total_items;
+            }
+            drop(map);
+            refresh_model_item(model, id, tasks);
         }
         Completed { id, .. } => {
             let mut map = tasks.lock();
