@@ -21,12 +21,17 @@ use {
 };
 
 use crate::{
-    download::progress::{
-        DownloadCommand::{self, Cancel, Enqueue, Shutdown},
-        DownloadEvent::{self, Completed, Failed, Progress, Started},
-        DownloadItem::{self, Album, Artist, Playlist, Track},
-        DownloadStatus::{Active, Cancelled, Completed as StatusCompleted, Failed as ItemFailed},
-        DownloadTask, Quality,
+    download::{
+        progress::{
+            DownloadCommand::{self, Cancel, Enqueue, Shutdown},
+            DownloadEvent::{self, Completed, Failed, Progress, Started},
+            DownloadItem::{self, Album, Artist, Playlist, Track},
+            DownloadStatus::{
+                Active, Cancelled, Completed as StatusCompleted, Failed as ItemFailed,
+            },
+            DownloadTask, Quality,
+        },
+        worker::album_output_dir,
     },
     errors::AppError::{self, Download},
 };
@@ -344,7 +349,10 @@ where
                 output_dir,
                 progress_callback,
             ),
-            Playlist { playlist_id, .. } => {
+            Playlist {
+                playlist_id, title, ..
+            } => {
+                let playlist_dir = album_output_dir(output_dir, "Playlists", title, quality);
                 let track_ids = extract_playlist_track_ids(&api, playlist_id)?;
                 let total = u32::try_from(track_ids.len()).unwrap_or_default();
                 let progress_callback = move |completed: u32| progress_callback(completed, total);
@@ -352,7 +360,7 @@ where
                     &mut api,
                     track_ids,
                     format_id,
-                    output_dir,
+                    &playlist_dir,
                     progress_callback,
                 )
             }
