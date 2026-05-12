@@ -19,7 +19,7 @@ use crate::{
     auth::{
         login_view::{
             LoginMethod::{EmailPassword, Token},
-            LoginWidgets, build as build_login, current_method,
+            LoginWidgets, build, current_method,
         },
         session::{
             AuthEvent::{self, Authenticated, AuthenticationFailed},
@@ -28,8 +28,8 @@ use crate::{
         },
     },
     browse::{
-        BrowseEvent::{self, AlbumMeta, AlbumTracks, Error},
-        album_view,
+        BrowseEvent::{self, AlbumMeta, AlbumTracks, Artist, Error, Playlist},
+        album_view, artist_view, playlist_view,
     },
     dashboard,
     download::{manager::DownloadManager, progress::DownloadCommand},
@@ -37,7 +37,7 @@ use crate::{
         dialog,
         settings::{AppSettings, save_settings},
     },
-    search::view as search_view,
+    search::view::build as build_view,
 };
 
 /// Saves settings and logs any error.
@@ -77,11 +77,11 @@ pub fn build_window(app: &Application, state: &AppState) -> ApplicationWindow {
 
     nav_view.add(&dashboard_page);
 
-    let search_widgets = search_view::build(state, download_manager.cmd_sender(), browse_sender);
+    let search_widgets = build_view(state, download_manager.cmd_sender(), browse_sender.clone());
     search_widgets.setup_esc_navigation(&nav_view);
     let search_page = NavigationPage::new(&search_widgets.root, "Search");
 
-    let login_widgets = build_login(state, auth_sender.clone());
+    let login_widgets = build(state, auth_sender.clone());
 
     let toolbar = ToolbarView::new();
     toolbar.set_content(Some(&login_widgets.root));
@@ -126,6 +126,7 @@ pub fn build_window(app: &Application, state: &AppState) -> ApplicationWindow {
     setup_browse_receiver(
         state,
         &nav_view,
+        browse_sender,
         browse_receiver,
         download_manager.cmd_sender(),
     );
@@ -250,6 +251,7 @@ fn attempt_keyring_login(state: &AppState, sender: &Sender<AuthEvent>) {
 fn setup_browse_receiver(
     state: &AppState,
     nav_view: &NavigationView,
+    browse_sender: Sender<BrowseEvent>,
     receiver: Receiver<BrowseEvent>,
     cmd_sender: Sender<DownloadCommand>,
 ) {
@@ -260,16 +262,24 @@ fn setup_browse_receiver(
 
     MainContext::default().spawn_local(async move {
         while let Ok(event) = receiver.recv().await {
-            handle_browse_event(event, &state, &cmd_sender, &nav_view, &pending_albums);
+            handle_browse_event(
+                event,
+                &state,
+                &cmd_sender,
+                &browse_sender,
+                &nav_view,
+                &pending_albums,
+            );
         }
     });
 }
 
-/// Handles a browse event by pushing the album view or logging errors.
+/// Handles a browse event by pushing the appropriate detail view or logging errors.
 fn handle_browse_event(
     event: BrowseEvent,
     state: &AppState,
     cmd_sender: &Sender<DownloadCommand>,
+    browse_sender: &Sender<BrowseEvent>,
     nav_view: &NavigationView,
     pending_albums: &RefCell<HashMap<String, album_view::AlbumDetailWidgets>>,
 ) {
@@ -297,10 +307,27 @@ fn handle_browse_event(
                 cmd_sender.clone(),
             );
         }
+        Playlist { playlist } => {
+            let widgets =
+                playlist_view::build(&playlist, Arc::clone(&state.settings), cmd_sender.clone());
+            let page = NavigationPage::new(&widgets.root, "Playlist");
+            nav_view.push(&page);
+        }
+        Artist { artist, albums } => {
+            let widgets = artist_view::build(
+                &artist,
+                &albums,
+                Arc::clone(&state.settings),
+                cmd_sender.clone(),
+                &state.api_service,
+                browse_sender,
+            );
+            let page = NavigationPage::new(&widgets.root, "Artist");
+            nav_view.push(&page);
+        }
         Error { context, error } => {
             error!(%context, %error, "Browse error");
         }
-        _ => {}
     }
 }
 

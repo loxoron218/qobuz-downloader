@@ -2,6 +2,7 @@
 
 pub mod album_view;
 pub mod artist_view;
+pub mod detail_common;
 pub mod playlist_view;
 
 use std::sync::Arc;
@@ -32,10 +33,12 @@ pub enum BrowseEvent {
         /// Track listings for the album.
         tracks: Vec<Track>,
     },
-    /// Artist detail loaded.
+    /// Artist detail loaded with album catalog.
     Artist {
         /// The artist.
         artist: Artist,
+        /// Albums from the artist catalog.
+        albums: Vec<Album>,
     },
     /// Playlist detail loaded.
     Playlist {
@@ -118,5 +121,101 @@ pub fn browse_album(
 
         info!(album_id = %album_id, track_count = %tracks.len(), "Album tracks loaded");
         send_event(&sender, BrowseEvent::AlbumTracks { album, tracks });
+    });
+}
+
+/// Loads playlist details including all tracks.
+///
+/// Playlists from the API include tracks in the same response when `extra="tracks"` is passed,
+/// so this is a single-phase fetch.
+///
+/// # Arguments
+///
+/// * `api_service` - Shared API service
+/// * `playlist_id` - Playlist ID to fetch
+/// * `sender` - Channel to send events on
+pub fn browse_playlist(
+    api_service: Arc<Mutex<QobuzApiService>>,
+    playlist_id: String,
+    sender: Sender<BrowseEvent>,
+) {
+    spawn_blocking(move || {
+        let api = api_service.lock();
+
+        let playlist = match api.get_playlist(&playlist_id, Some("tracks")) {
+            Ok(p) => p,
+            Err(e) => {
+                error!(playlist_id = %playlist_id, error = %e, "Failed to browse playlist");
+                send_event(
+                    &sender,
+                    BrowseEvent::Error {
+                        context: format!("Loading playlist {playlist_id}"),
+                        error: format!("{e}"),
+                    },
+                );
+                return;
+            }
+        };
+
+        drop(api);
+        info!(playlist_id = %playlist_id, "Playlist loaded");
+        send_event(&sender, BrowseEvent::Playlist { playlist });
+    });
+}
+
+/// Loads artist details and their album catalog.
+///
+/// Fetches artist metadata via `get_artist` and album catalog via `get_release_list`.
+/// Both requests are made within the same `spawn_blocking` closure.
+///
+/// # Arguments
+///
+/// * `api_service` - Shared API service
+/// * `artist_id` - Artist ID to fetch
+/// * `sender` - Channel to send events on
+pub fn browse_artist(
+    api_service: Arc<Mutex<QobuzApiService>>,
+    artist_id: i32,
+    sender: Sender<BrowseEvent>,
+) {
+    spawn_blocking(move || {
+        let api = api_service.lock();
+
+        let artist = match api.get_artist(artist_id, None) {
+            Ok(a) => a,
+            Err(e) => {
+                error!(artist_id = %artist_id, error = %e, "Failed to browse artist");
+                send_event(
+                    &sender,
+                    BrowseEvent::Error {
+                        context: format!("Loading artist {artist_id}"),
+                        error: format!("{e}"),
+                    },
+                );
+                return;
+            }
+        };
+
+        let mut albums = match api.get_release_list(artist_id, Some(50), None) {
+            Ok(releases) => releases
+                .items
+                .unwrap_or_default()
+                .into_iter()
+                .map(|a| *a)
+                .collect::<Vec<_>>(),
+            Err(e) => {
+                warn!(artist_id = %artist_id, error = %e, "Failed to fetch artist release list");
+                Vec::new()
+            }
+        };
+        albums.sort_by(|a, b| {
+            let date_a = a.release_date_original.as_deref().unwrap_or("");
+            let date_b = b.release_date_original.as_deref().unwrap_or("");
+            date_b.cmp(date_a)
+        });
+
+        drop(api);
+        info!(artist_id = %artist_id, album_count = %albums.len(), "Artist detail loaded");
+        send_event(&sender, BrowseEvent::Artist { artist, albums });
     });
 }

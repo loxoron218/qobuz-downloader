@@ -148,10 +148,10 @@
 
 ### Implementation for User Story 4
 
-- [ ] T038 [P] [US4] Implement playlist detail view in src/browse/playlist_view.rs: AdwToolbarView with back navigation, playlist name/creator/track count/duration labels, track listing (GtkListView), download playlist button
-- [ ] T039 [P] [US4] Implement artist detail view (FR-009a) in src/browse/artist_view.rs: AdwToolbarView with back navigation, artist name/image, album listing from artist catalog
-- [ ] T040 [US4] Add playlist and artist browsing via gio::spawn_blocking in src/browse/mod.rs: send BrowseEvent::Playlist/Artist via glib channel, push views onto NavigationView in src/window.rs
-- [ ] T041 [US4] Add batch playlist download to src/download/manager.rs: enqueue all playlist tracks as individual downloads, same concurrency and progress reporting as album downloads
+- [X] T038 [P] [US4] Implement playlist detail view in src/browse/playlist_view.rs: AdwToolbarView with back navigation, playlist name/creator/track count/duration labels, track listing (GtkListView), download playlist button
+- [X] T039 [P] [US4] Implement artist detail view (FR-009a) in src/browse/artist_view.rs: AdwToolbarView with back navigation, artist name/image, album listing from artist catalog
+- [X] T040 [US4] Add playlist and artist browsing via gio::spawn_blocking in src/browse/mod.rs: send BrowseEvent::Playlist/Artist via glib channel, push views onto NavigationView in src/window.rs
+- [X] T041 [US4] Add batch playlist download to src/download/manager.rs: enqueue all playlist tracks as individual downloads, same concurrency and progress reporting as album downloads
 
 **Checkpoint**: Playlist and artist browsing and downloading are fully functional — all content types are now supported.
 

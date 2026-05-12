@@ -1,7 +1,14 @@
 //! Search view UI matching the original implementation: `SearchEntry`, scope selector,
 //! Hi-Res and explicit content indicators, inline `SplitButton` for download/queue actions.
 
-use std::{cell::RefCell, collections::HashMap, rc::Rc, sync::Arc, thread::spawn};
+use std::{
+    cell::{Cell, RefCell},
+    collections::HashMap,
+    rc::Rc,
+    sync::Arc,
+    thread::spawn,
+    time::{SystemTime, UNIX_EPOCH},
+};
 
 use {
     async_channel::{Receiver, Sender, unbounded},
@@ -36,7 +43,7 @@ use {
 
 use crate::{
     app::AppState,
-    browse::{BrowseEvent, browse_album},
+    browse::{BrowseEvent, browse_album, browse_artist, browse_playlist},
     cover_art::cache::CoverArtCache,
     download::progress::{DownloadCommand, DownloadItem, DownloadTask},
     preferences::settings::AppSettings,
@@ -46,6 +53,16 @@ use crate::{
         SearchScope,
     },
 };
+
+/// Target for double-click activation navigation.
+enum ActivationTarget {
+    /// Browse album detail.
+    Album(String),
+    /// Browse artist detail.
+    Artist(i32),
+    /// Browse playlist detail.
+    Playlist(String),
+}
 
 /// Category of a search result for section grouping.
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -254,34 +271,112 @@ fn build_search_scaffold(
     )
 }
 
-/// Sets up double-click gesture handler to browse album details.
+/// Sets up double-click gesture handler to browse detail views.
 fn setup_results_activation(
     list_box: &ListBox,
-    items: Rc<RefCell<Vec<SearchResultItem>>>,
-    api_service: Arc<Mutex<QobuzApiService>>,
+    items: &Rc<RefCell<Vec<SearchResultItem>>>,
+    api_service: &Arc<Mutex<QobuzApiService>>,
     browse_sender: Sender<BrowseEvent>,
+    toast_overlay: &ToastOverlay,
 ) {
     let list_box_owned = list_box.clone();
+    let items_for_gesture = Rc::clone(items);
+    let api_for_gesture = Arc::clone(api_service);
+    let sender_for_gesture = browse_sender.clone();
+    let toast_for_gesture = toast_overlay.clone();
     let gesture = GestureClick::new();
     gesture.set_button(1);
+    let last_nav_ms: Rc<Cell<u64>> = Rc::new(Cell::new(0));
     gesture.connect_pressed(move |_, n_press, _x, y| {
         if n_press != 2 {
             return;
         }
+        let dur = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap_or_default();
+        let now = dur.as_secs() * 1000 + u64::from(dur.subsec_millis());
+        if now - last_nav_ms.get() < 500 {
+            return;
+        }
+        last_nav_ms.set(now);
         let row = list_box_owned.row_at_y(y.as_());
         let Some(row) = row else {
             return;
         };
         let position = row.index().unsigned_abs();
-        let items_ref = items.borrow();
-        let album_id = find_album_at_position(&items_ref, position).map(ToString::to_string);
+        let items_ref = items_for_gesture.borrow();
+        let target = find_item_at_position(&items_ref, position);
         drop(items_ref);
-        let Some(id) = album_id else {
+        let Some(target) = target else {
             return;
         };
-        browse_album(Arc::clone(&api_service), id, browse_sender.clone());
+        match target {
+            ActivationTarget::Album(id) => {
+                let toast = Toast::new("Opening album…");
+                toast.set_timeout(2);
+                toast_for_gesture.add_toast(toast);
+                browse_album(Arc::clone(&api_for_gesture), id, sender_for_gesture.clone());
+            }
+            ActivationTarget::Artist(id) => {
+                let toast = Toast::new("Opening artist…");
+                toast.set_timeout(2);
+                toast_for_gesture.add_toast(toast);
+                browse_artist(Arc::clone(&api_for_gesture), id, sender_for_gesture.clone());
+            }
+            ActivationTarget::Playlist(id) => {
+                let toast = Toast::new("Opening playlist…");
+                toast.set_timeout(2);
+                toast_for_gesture.add_toast(toast);
+                browse_playlist(Arc::clone(&api_for_gesture), id, sender_for_gesture.clone());
+            }
+        }
     });
     list_box.add_controller(gesture);
+
+    let list_box_for_key = list_box.clone();
+    let items_for_key = Rc::clone(items);
+    let api_for_key = Arc::clone(api_service);
+    let browse_for_key = browse_sender;
+    let toast_for_key = toast_overlay.clone();
+    let key_controller = EventControllerKey::new();
+    key_controller.connect_key_pressed(move |_, key, _, _| {
+        if key != Key::Return && key != Key::KP_Enter {
+            return Proceed;
+        }
+        let row = list_box_for_key.selected_row();
+        let Some(row) = row else {
+            return Proceed;
+        };
+        let position = row.index().unsigned_abs();
+        let items_ref = items_for_key.borrow();
+        let target = find_item_at_position(&items_ref, position);
+        drop(items_ref);
+        let Some(target) = target else {
+            return Proceed;
+        };
+        match target {
+            ActivationTarget::Album(id) => {
+                let toast = Toast::new("Opening album…");
+                toast.set_timeout(2);
+                toast_for_key.add_toast(toast);
+                browse_album(Arc::clone(&api_for_key), id, browse_for_key.clone());
+            }
+            ActivationTarget::Artist(id) => {
+                let toast = Toast::new("Opening artist…");
+                toast.set_timeout(2);
+                toast_for_key.add_toast(toast);
+                browse_artist(Arc::clone(&api_for_key), id, browse_for_key.clone());
+            }
+            ActivationTarget::Playlist(id) => {
+                let toast = Toast::new("Opening playlist…");
+                toast.set_timeout(2);
+                toast_for_key.add_toast(toast);
+                browse_playlist(Arc::clone(&api_for_key), id, browse_for_key.clone());
+            }
+        }
+        Proceed
+    });
+    list_box.add_controller(key_controller);
 }
 
 /// Sets up scope selector to re-trigger search with new scope.
@@ -378,9 +473,10 @@ pub fn build(
 
     setup_results_activation(
         &list_box_for_activation,
-        items,
-        Arc::clone(&state.api_service),
+        &items,
+        &state.api_service,
         browse_sender,
+        &toast_overlay,
     );
     setup_scope_selector(
         &scope_selector,
@@ -827,7 +923,12 @@ fn populate_album_items(result: &SearchResult, items: &Rc<RefCell<Vec<SearchResu
             .as_ref()
             .and_then(|a| a.name.as_deref())
             .unwrap_or("Unknown Artist");
-        let cover_url = album.image.as_ref().and_then(|img| img.thumbnail.clone());
+        let cover_url = album.image.as_ref().and_then(|img| {
+            img.thumbnail
+                .clone()
+                .or_else(|| img.small.clone())
+                .or_else(|| img.url.clone())
+        });
         let duration = album.duration.unwrap_or(0);
         let bit_depth = album.maximum_bit_depth.unwrap_or(0);
         let sampling_rate = album.maximum_sampling_rate.unwrap_or(0.0);
@@ -865,7 +966,12 @@ fn populate_artist_items(result: &SearchResult, items: &Rc<RefCell<Vec<SearchRes
     for artist in artist_items {
         let Some(id) = artist.id else { continue };
         let name = artist.name.as_deref().unwrap_or("Unknown Artist");
-        let cover_url = artist.image.as_ref().and_then(|img| img.thumbnail.clone());
+        let cover_url = artist.image.as_ref().and_then(|img| {
+            img.thumbnail
+                .clone()
+                .or_else(|| img.small.clone())
+                .or_else(|| img.url.clone())
+        });
         items.borrow_mut().push(SearchResultItem::Artist {
             id,
             name: name.to_string(),
@@ -885,10 +991,7 @@ fn populate_playlist_items(result: &SearchResult, items: &Rc<RefCell<Vec<SearchR
     for playlist in playlist_items {
         let id = playlist.id.clone().unwrap_or_default();
         let name = playlist.name.as_deref().unwrap_or("Unknown Playlist");
-        let cover_url = playlist
-            .image
-            .as_ref()
-            .and_then(|img| img.thumbnail.clone());
+        let cover_url = playlist.best_image_url(false);
         let is_explicit = false;
         items.borrow_mut().push(SearchResultItem::Playlist {
             id,
@@ -1066,9 +1169,13 @@ fn fetch_artist_cover_url(api_service: &Arc<Mutex<QobuzApiService>>, id: &str) -
             return None;
         }
     };
-    let img = artist.image?;
-    let url = img.thumbnail.clone().or_else(|| img.small.clone())?;
-    let result = Some(url);
+    let url = artist.image.as_ref().and_then(|img| {
+        img.thumbnail
+            .clone()
+            .or_else(|| img.small.clone())
+            .or_else(|| img.url.clone())
+    });
+    let result = url;
     drop(api);
     result
 }
@@ -1083,9 +1190,8 @@ fn fetch_playlist_cover_url(api_service: &Arc<Mutex<QobuzApiService>>, id: &str)
             return None;
         }
     };
-    let img = playlist.image?;
-    let url = img.thumbnail.clone().or_else(|| img.small.clone())?;
-    let result = Some(url);
+    let url = playlist.best_image_url(false);
+    let result = url;
     drop(api);
     result
 }
@@ -1149,10 +1255,13 @@ fn populate_track_items(result: &SearchResult, items: &Rc<RefCell<Vec<SearchResu
             .as_ref()
             .and_then(|a| a.title.as_deref())
             .unwrap_or("Unknown Album");
-        let cover_url = track
-            .album
-            .as_ref()
-            .and_then(|a| a.image.as_ref()?.thumbnail.clone());
+        let cover_url = track.album.as_ref().and_then(|a| {
+            let img = a.image.as_ref()?;
+            img.thumbnail
+                .clone()
+                .or_else(|| img.small.clone())
+                .or_else(|| img.url.clone())
+        });
         let duration = track.duration.unwrap_or(0);
         let bit_depth = track
             .audio_info
@@ -1195,8 +1304,8 @@ fn quality_string(bit_depth: i32, sampling_rate: f64) -> String {
     }
 }
 
-/// Finds an album ID at the given `ListBox` row position (accounting for section headers).
-fn find_album_at_position(items: &[SearchResultItem], row_index: u32) -> Option<&str> {
+/// Finds an item at the given `ListBox` row position (accounting for section headers).
+fn find_item_at_position(items: &[SearchResultItem], row_index: u32) -> Option<ActivationTarget> {
     let mut pos = 0u32;
     let mut current_category: Option<SearchCategory> = None;
     for item in items {
@@ -1214,10 +1323,12 @@ fn find_album_at_position(items: &[SearchResultItem], row_index: u32) -> Option<
             pos += 1;
             continue;
         }
-        let SearchResultItem::Album { id, .. } = item else {
-            return None;
+        return match item {
+            SearchResultItem::Album { id, .. } => Some(ActivationTarget::Album(id.clone())),
+            SearchResultItem::Artist { id, .. } => Some(ActivationTarget::Artist(*id)),
+            SearchResultItem::Playlist { id, .. } => Some(ActivationTarget::Playlist(id.clone())),
+            SearchResultItem::Track { .. } => None,
         };
-        return Some(id.as_str());
     }
     None
 }

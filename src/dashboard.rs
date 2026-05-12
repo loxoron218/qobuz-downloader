@@ -217,7 +217,12 @@ fn fetch_album_meta(api: &QobuzApiService, album_id: &str) -> Option<FetchedMeta
         .and_then(|a| a.name.as_deref())
         .unwrap_or("Unknown Artist")
         .to_string();
-    let cover_url = album.image.as_ref().and_then(|img| img.thumbnail.clone());
+    let cover_url = album.image.as_ref().and_then(|img| {
+        img.thumbnail
+            .clone()
+            .or_else(|| img.small.clone())
+            .or_else(|| img.url.clone())
+    });
     Some(FetchedMeta {
         title,
         artist,
@@ -245,10 +250,13 @@ fn fetch_track_meta(api: &QobuzApiService, track_id: i32) -> Option<FetchedMeta>
         .and_then(|a| a.name.as_deref())
         .unwrap_or("Unknown Artist")
         .to_string();
-    let cover_url = track
-        .album
-        .as_ref()
-        .and_then(|a| a.image.as_ref()?.thumbnail.clone());
+    let cover_url = track.album.as_ref().and_then(|a| {
+        let img = a.image.as_ref()?;
+        img.thumbnail
+            .clone()
+            .or_else(|| img.small.clone())
+            .or_else(|| img.url.clone())
+    });
     Some(FetchedMeta {
         title,
         artist,
@@ -271,15 +279,10 @@ fn fetch_playlist_meta(api: &QobuzApiService, playlist_id: &str) -> Option<Fetch
         .unwrap_or("Unknown Playlist")
         .to_string();
     let artist = playlist
-        .creator
-        .as_ref()
-        .and_then(|u| u.display_name.as_deref())
+        .creator_name()
         .unwrap_or("Unknown Creator")
         .to_string();
-    let cover_url = playlist
-        .image
-        .as_ref()
-        .and_then(|img| img.thumbnail.clone());
+    let cover_url = playlist.best_image_url(true);
     Some(FetchedMeta {
         title,
         artist,
