@@ -110,8 +110,10 @@ pub fn build_window(app: &Application, state: &AppState) -> ApplicationWindow {
 
         let nav = nav_view.clone();
         let sp = search_page;
+        let search_entry = search_widgets.search_entry;
         search_button.connect_clicked(move |_| {
             nav.push(&sp);
+            search_entry.grab_focus();
         });
 
         let state_for_dialog = state.clone();

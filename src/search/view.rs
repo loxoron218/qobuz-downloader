@@ -27,12 +27,15 @@ use {
             Orientation::{Horizontal, Vertical},
             Picture,
             PolicyType::Automatic,
-            Popover, ScrolledWindow, SearchEntry,
+            Popover,
+            PropagationPhase::Capture,
+            ScrolledWindow, SearchEntry,
             SelectionMode::Single,
             pango::EllipsizeMode::End as EllipsizeEnd,
         },
         prelude::{
-            BoxExt, ButtonExt, EditableExt, GestureSingleExt, ListBoxRowExt, PopoverExt, WidgetExt,
+            BoxExt, ButtonExt, EditableExt, EventControllerExt, GestureSingleExt, ListBoxRowExt,
+            PopoverExt, WidgetExt,
         },
     },
     num_traits::AsPrimitive,
@@ -205,6 +208,8 @@ enum SearchResultItem {
 pub struct SearchWidgets {
     /// Root container widget.
     pub root: ToolbarView,
+    /// Search entry widget.
+    pub search_entry: SearchEntry,
     /// Scope selector dropdown for category navigation.
     scope_selector: DropDown,
     /// Current search scope.
@@ -221,6 +226,7 @@ impl SearchWidgets {
         let scope_selector = self.scope_selector.clone();
         let scope = Rc::clone(&self.scope);
 
+        key_controller.set_propagation_phase(Capture);
         key_controller.connect_key_pressed(move |_, key, _, _| {
             handle_key_pressed(key, &scope, &nav_view, &scope_selector)
         });
@@ -562,6 +568,7 @@ pub fn build(
 
     SearchWidgets {
         root: toolbar,
+        search_entry,
         scope_selector,
         scope: sw_scope,
         header_bar,
