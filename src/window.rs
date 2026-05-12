@@ -5,10 +5,10 @@ use std::{cell::RefCell, collections::HashMap, sync::Arc};
 use {
     async_channel::{Receiver, Sender, unbounded},
     libadwaita::{
-        Application, ApplicationWindow, NavigationPage, NavigationView, ToolbarView,
+        Application, ApplicationWindow, HeaderBar, NavigationPage, NavigationView, ToolbarView,
         gio::spawn_blocking,
         glib::{MainContext, Propagation::Proceed},
-        gtk::{Box as GtkBox, Button},
+        gtk::{Box as GtkBox, Button, Label},
         prelude::{AdwApplicationWindowExt, AdwDialogExt, ButtonExt, GtkWindowExt, WidgetExt},
     },
     tracing::{error, info, warn},
@@ -83,7 +83,11 @@ pub fn build_window(app: &Application, state: &AppState) -> ApplicationWindow {
 
     let login_widgets = build(state, auth_sender.clone());
 
+    let login_header = HeaderBar::new();
+    login_header.set_title_widget(Some(&Label::new(Some("Qobuz Downloader"))));
+
     let toolbar = ToolbarView::new();
+    toolbar.add_top_bar(&login_header);
     toolbar.set_content(Some(&login_widgets.root));
 
     {
@@ -109,9 +113,14 @@ pub fn build_window(app: &Application, state: &AppState) -> ApplicationWindow {
         let state_for_dialog = state.clone();
         let window_for_dialog = window.clone();
         let toolbar_for_logout = toolbar.clone();
+        let login_header_for_logout = login_header.clone();
         let login_root_for_logout = login_widgets.root.clone();
         settings_button.connect_clicked(move |_| {
-            let on_logout = make_logout_callback(&toolbar_for_logout, &login_root_for_logout);
+            let on_logout = make_logout_callback(
+                &toolbar_for_logout,
+                &login_root_for_logout,
+                &login_header_for_logout,
+            );
             let dialog = dialog::build(&state_for_dialog, on_logout, &window_for_dialog);
             dialog.present(Some(&window_for_dialog));
         });
@@ -122,7 +131,14 @@ pub fn build_window(app: &Application, state: &AppState) -> ApplicationWindow {
         *auth_state = Authenticating;
     }
 
-    setup_auth_receiver(state, &toolbar, &nav_view, &login_widgets, auth_receiver);
+    setup_auth_receiver(
+        state,
+        &toolbar,
+        &nav_view,
+        &login_widgets,
+        &login_header,
+        auth_receiver,
+    );
     setup_browse_receiver(
         state,
         &nav_view,
@@ -159,16 +175,25 @@ fn setup_auth_receiver(
     toolbar: &ToolbarView,
     nav_view: &NavigationView,
     login_widgets: &LoginWidgets,
+    login_header: &HeaderBar,
     receiver: Receiver<AuthEvent>,
 ) {
     let toolbar = toolbar.clone();
     let nav_view = nav_view.clone();
     let state = state.clone();
     let login_widgets = login_widgets.clone();
+    let login_header = login_header.clone();
 
     MainContext::default().spawn_local(async move {
         while let Ok(event) = receiver.recv().await {
-            handle_auth_event(&event, &state, &toolbar, &nav_view, &login_widgets);
+            handle_auth_event(
+                &event,
+                &state,
+                &toolbar,
+                &nav_view,
+                &login_widgets,
+                &login_header,
+            );
         }
     });
 }
@@ -180,6 +205,7 @@ fn handle_auth_event(
     toolbar: &ToolbarView,
     nav_view: &NavigationView,
     login_widgets: &LoginWidgets,
+    login_header: &HeaderBar,
 ) {
     match event {
         Authenticated { user_id } => {
@@ -191,6 +217,7 @@ fn handle_auth_event(
                 };
             }
 
+            toolbar.remove(login_header);
             toolbar.set_content(Some(nav_view));
         }
         AuthenticationFailed { error: err_msg } => {
@@ -332,10 +359,16 @@ fn handle_browse_event(
 }
 
 /// Creates a logout callback that switches the toolbar content back to the login view.
-fn make_logout_callback(toolbar: &ToolbarView, login_root: &GtkBox) -> Box<dyn Fn() + 'static> {
+fn make_logout_callback(
+    toolbar: &ToolbarView,
+    login_root: &GtkBox,
+    login_header: &HeaderBar,
+) -> Box<dyn Fn() + 'static> {
     let toolbar = toolbar.clone();
     let login_root = login_root.clone();
+    let login_header = login_header.clone();
     Box::new(move || {
+        toolbar.add_top_bar(&login_header);
         toolbar.set_content(Some(&login_root));
     })
 }
