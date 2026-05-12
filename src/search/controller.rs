@@ -101,6 +101,17 @@ impl SearchScope {
             _ => Self::All,
         }
     }
+
+    /// Converts this `SearchScope` to a u32 index for the dropdown.
+    pub fn to_u32(self) -> u32 {
+        match self {
+            Self::All => 0,
+            Self::Albums => 1,
+            Self::Tracks => 2,
+            Self::Artists => 3,
+            Self::Playlists => 4,
+        }
+    }
 }
 
 /// Executes a scoped search query on a background thread.

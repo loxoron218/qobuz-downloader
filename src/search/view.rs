@@ -17,7 +17,7 @@ use {
         gdk::{Key, Texture},
         glib::{
             MainContext,
-            Propagation::{Proceed, Stop},
+            Propagation::{self, Proceed, Stop},
             object::Cast,
         },
         gtk::{
@@ -50,7 +50,7 @@ use crate::{
     search::controller::{
         SearchController,
         SearchEvent::{self, Error, Results},
-        SearchScope,
+        SearchScope::{self, All},
     },
 };
 
@@ -87,6 +87,16 @@ impl SearchCategory {
             Self::Playlists => "Playlists",
         }
     }
+
+    /// Returns the corresponding search scope for this category.
+    fn to_scope(self) -> SearchScope {
+        match self {
+            Self::Tracks => SearchScope::Tracks,
+            Self::Albums => SearchScope::Albums,
+            Self::Artists => SearchScope::Artists,
+            Self::Playlists => SearchScope::Playlists,
+        }
+    }
 }
 
 /// Shared context passed through search result processing.
@@ -115,6 +125,10 @@ struct SearchCtx {
     cmd_sender: Sender<DownloadCommand>,
     /// Shared API client for fetching artist/playlist details.
     api_service: Arc<Mutex<QobuzApiService>>,
+    /// Current search scope.
+    scope: Rc<RefCell<SearchScope>>,
+    /// Scope selector dropdown for category navigation.
+    scope_selector: DropDown,
 }
 
 /// Structured search result item with full display data.
@@ -191,32 +205,86 @@ enum SearchResultItem {
 pub struct SearchWidgets {
     /// Root container widget.
     pub root: ToolbarView,
-    /// Search entry widget.
-    pub search_entry: SearchEntry,
+    /// Scope selector dropdown for category navigation.
+    scope_selector: DropDown,
+    /// Current search scope.
+    scope: Rc<RefCell<SearchScope>>,
+    /// Header bar for custom back button.
+    header_bar: HeaderBar,
 }
 
 impl SearchWidgets {
-    /// Sets up ESC key navigation to pop the `NavigationView`.
+    /// Sets up ESC key and back button navigation to pop the `NavigationView` or reset scope.
     pub fn setup_esc_navigation(&self, navigation_view: &NavigationView) {
         let key_controller = EventControllerKey::new();
         let nav_view = navigation_view.clone();
+        let scope_selector = self.scope_selector.clone();
+        let scope = Rc::clone(&self.scope);
 
-        key_controller.connect_key_pressed(move |_, key, _, _| match key {
-            Key::Escape => {
-                nav_view.pop();
-                Stop
-            }
-            _ => Proceed,
+        key_controller.connect_key_pressed(move |_, key, _, _| {
+            handle_key_pressed(key, &scope, &nav_view, &scope_selector)
         });
 
-        self.search_entry.add_controller(key_controller);
+        self.root.add_controller(key_controller);
+
+        let back_button = Button::builder()
+            .icon_name("go-previous-symbolic")
+            .tooltip_text("Back")
+            .build();
+
+        let nav_view_clone = navigation_view.clone();
+        let back_scope = Rc::clone(&self.scope);
+        let back_selector = self.scope_selector.clone();
+        back_button.connect_clicked(move |_| {
+            handle_back_clicked(&back_scope, &nav_view_clone, &back_selector);
+        });
+
+        self.header_bar.pack_start(&back_button);
     }
+}
+
+/// Handles ESC key press to pop the navigation view or reset the search scope.
+fn handle_key_pressed(
+    key: Key,
+    scope: &RefCell<SearchScope>,
+    nav_view: &NavigationView,
+    scope_selector: &DropDown,
+) -> Propagation {
+    if key != Key::Escape {
+        return Proceed;
+    }
+    if *scope.borrow() == All {
+        nav_view.pop();
+        return Stop;
+    }
+    scope_selector.set_selected(0);
+    Stop
+}
+
+/// Handles back button click to pop the navigation view or reset the search scope.
+fn handle_back_clicked(
+    scope: &RefCell<SearchScope>,
+    nav_view: &NavigationView,
+    scope_selector: &DropDown,
+) {
+    if *scope.borrow() == All {
+        nav_view.pop();
+        return;
+    }
+    scope_selector.set_selected(0);
 }
 
 /// Builds the search scaffold UI.
 fn build_search_scaffold(
     saved_scope: u32,
-) -> (ToolbarView, SearchEntry, DropDown, ListBox, ToastOverlay) {
+) -> (
+    ToolbarView,
+    SearchEntry,
+    DropDown,
+    ListBox,
+    ToastOverlay,
+    HeaderBar,
+) {
     let toolbar = ToolbarView::new();
     let header = HeaderBar::new();
 
@@ -268,6 +336,7 @@ fn build_search_scaffold(
         scope_selector,
         list_box,
         toast_overlay,
+        header,
     )
 }
 
@@ -426,7 +495,7 @@ pub fn build(
     let (search_sender, search_receiver) = unbounded::<SearchEvent>();
 
     let saved_scope = state.settings.lock().search_scope;
-    let (toolbar, search_entry, scope_selector, list_box, toast_overlay) =
+    let (toolbar, search_entry, scope_selector, list_box, toast_overlay, header_bar) =
         build_search_scaffold(saved_scope);
 
     let (texture_sender, texture_receiver) = unbounded::<(String, Option<Texture>)>();
@@ -459,6 +528,8 @@ pub fn build(
         settings: Arc::clone(&state.settings),
         cmd_sender,
         api_service: Arc::clone(&state.api_service),
+        scope: Rc::clone(&scope),
+        scope_selector: scope_selector.clone(),
     };
 
     connect_search_entry(
@@ -478,6 +549,8 @@ pub fn build(
         browse_sender,
         &toast_overlay,
     );
+    let sw_scope = Rc::clone(&scope);
+
     setup_scope_selector(
         &scope_selector,
         &controller,
@@ -489,7 +562,9 @@ pub fn build(
 
     SearchWidgets {
         root: toolbar,
-        search_entry,
+        scope_selector,
+        scope: sw_scope,
+        header_bar,
     }
 }
 
@@ -749,20 +824,38 @@ fn build_hires_indicator(item: &SearchResultItem) -> Box {
     container
 }
 
-/// Creates a section header row with bold, non-activatable styling.
-fn create_section_header(label: &str) -> ListBoxRow {
-    let label_widget = Label::new(Some(label));
-    label_widget.set_xalign(0.0);
-    label_widget.add_css_class("heading");
-    label_widget.set_margin_start(12);
-    label_widget.set_margin_end(12);
-    label_widget.set_margin_top(12);
-    label_widget.set_margin_bottom(6);
+/// Creates a section header row with a ">" navigation button for scope filtering.
+fn create_section_header(category: SearchCategory, ctx: &SearchCtx) -> ListBoxRow {
+    let label = Label::new(Some(category.label()));
+    label.set_xalign(0.0);
+    label.add_css_class("heading");
+    label.set_margin_start(12);
+    label.set_margin_end(6);
+    label.set_margin_top(12);
+    label.set_margin_bottom(6);
+    label.set_hexpand(true);
+
+    let arrow = Image::from_icon_name("go-next-symbolic");
+    arrow.set_margin_end(12);
+    arrow.set_margin_top(12);
+    arrow.set_margin_bottom(6);
+
+    let header_box = Box::new(Horizontal, 0);
+    header_box.append(&label);
+    header_box.append(&arrow);
 
     let row = ListBoxRow::new();
     row.set_activatable(false);
     row.set_selectable(false);
-    row.set_child(Some(&label_widget));
+    row.set_child(Some(&header_box));
+
+    let scope_selector = ctx.scope_selector.clone();
+    let scope_category = category;
+    let gesture = GestureClick::new();
+    gesture.connect_pressed(move |_, _, _, _| {
+        scope_selector.set_selected(scope_category.to_scope().to_u32());
+    });
+    row.add_controller(gesture);
 
     row
 }
@@ -910,12 +1003,19 @@ fn handle_texture(
 }
 
 /// Adds album items to the item vector.
-fn populate_album_items(result: &SearchResult, items: &Rc<RefCell<Vec<SearchResultItem>>>) {
+fn populate_album_items(
+    result: &SearchResult,
+    items: &Rc<RefCell<Vec<SearchResultItem>>>,
+    limit_to_five: bool,
+) {
     let Some(albums) = &result.albums else { return };
     let Some(album_items) = &albums.items else {
         return;
     };
-    for album in album_items {
+    for (i, album) in album_items.iter().enumerate() {
+        if limit_to_five && i >= 5 {
+            break;
+        }
         let Some(id) = album.id.clone() else { continue };
         let title = album.title.as_deref().unwrap_or("Unknown Album");
         let artist = album
@@ -956,14 +1056,21 @@ fn populate_album_items(result: &SearchResult, items: &Rc<RefCell<Vec<SearchResu
 }
 
 /// Adds artist items to the item vector.
-fn populate_artist_items(result: &SearchResult, items: &Rc<RefCell<Vec<SearchResultItem>>>) {
+fn populate_artist_items(
+    result: &SearchResult,
+    items: &Rc<RefCell<Vec<SearchResultItem>>>,
+    limit_to_five: bool,
+) {
     let Some(artists) = &result.artists else {
         return;
     };
     let Some(artist_items) = &artists.items else {
         return;
     };
-    for artist in artist_items {
+    for (i, artist) in artist_items.iter().enumerate() {
+        if limit_to_five && i >= 5 {
+            break;
+        }
         let Some(id) = artist.id else { continue };
         let name = artist.name.as_deref().unwrap_or("Unknown Artist");
         let cover_url = artist.image.as_ref().and_then(|img| {
@@ -981,14 +1088,21 @@ fn populate_artist_items(result: &SearchResult, items: &Rc<RefCell<Vec<SearchRes
 }
 
 /// Adds playlist items to the item vector.
-fn populate_playlist_items(result: &SearchResult, items: &Rc<RefCell<Vec<SearchResultItem>>>) {
+fn populate_playlist_items(
+    result: &SearchResult,
+    items: &Rc<RefCell<Vec<SearchResultItem>>>,
+    limit_to_five: bool,
+) {
     let Some(playlists) = &result.playlists else {
         return;
     };
     let Some(playlist_items) = &playlists.items else {
         return;
     };
-    for playlist in playlist_items {
+    for (i, playlist) in playlist_items.iter().enumerate() {
+        if limit_to_five && i >= 5 {
+            break;
+        }
         let id = playlist.id.clone().unwrap_or_default();
         let name = playlist.name.as_deref().unwrap_or("Unknown Playlist");
         let cover_url = playlist.best_image_url(false);
@@ -1205,10 +1319,12 @@ fn populate_results(ctx: &SearchCtx, result: &SearchResult) {
     ctx.artist_picture_map.borrow_mut().clear();
     ctx.playlist_picture_map.borrow_mut().clear();
 
-    populate_track_items(result, &ctx.items);
-    populate_album_items(result, &ctx.items);
-    populate_artist_items(result, &ctx.items);
-    populate_playlist_items(result, &ctx.items);
+    let is_all = matches!(*ctx.scope.borrow(), SearchScope::All);
+
+    populate_track_items(result, &ctx.items, is_all);
+    populate_album_items(result, &ctx.items, is_all);
+    populate_artist_items(result, &ctx.items, is_all);
+    populate_playlist_items(result, &ctx.items, is_all);
 
     let items_ref = ctx.items.borrow();
     let mut current_category = None;
@@ -1225,8 +1341,7 @@ fn populate_results(ctx: &SearchCtx, result: &SearchResult) {
 
         if needs_header {
             current_category = Some(category);
-            ctx.list_box
-                .append(&create_section_header(category.label()));
+            ctx.list_box.append(&create_section_header(category, ctx));
         }
 
         let row = create_data_row(item, ctx);
@@ -1237,12 +1352,19 @@ fn populate_results(ctx: &SearchCtx, result: &SearchResult) {
 }
 
 /// Adds track items to the item vector.
-fn populate_track_items(result: &SearchResult, items: &Rc<RefCell<Vec<SearchResultItem>>>) {
+fn populate_track_items(
+    result: &SearchResult,
+    items: &Rc<RefCell<Vec<SearchResultItem>>>,
+    limit_to_five: bool,
+) {
     let Some(tracks) = &result.tracks else { return };
     let Some(track_items) = &tracks.items else {
         return;
     };
-    for track in track_items {
+    for (i, track) in track_items.iter().enumerate() {
+        if limit_to_five && i >= 5 {
+            break;
+        }
         let Some(id) = track.id else { continue };
         let title = track.title.as_deref().unwrap_or("Unknown Track");
         let artist = track

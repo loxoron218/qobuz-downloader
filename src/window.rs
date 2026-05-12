@@ -9,7 +9,10 @@ use {
         gio::spawn_blocking,
         glib::{MainContext, Propagation::Proceed},
         gtk::{Box as GtkBox, Button, Label},
-        prelude::{AdwApplicationWindowExt, AdwDialogExt, ButtonExt, GtkWindowExt, WidgetExt},
+        prelude::{
+            AdwApplicationWindowExt, AdwDialogExt, ButtonExt, GtkWindowExt, NavigationPageExt,
+            WidgetExt,
+        },
     },
     tracing::{error, info, warn},
 };
@@ -78,8 +81,9 @@ pub fn build_window(app: &Application, state: &AppState) -> ApplicationWindow {
     nav_view.add(&dashboard_page);
 
     let search_widgets = build_view(state, download_manager.cmd_sender(), browse_sender.clone());
-    search_widgets.setup_esc_navigation(&nav_view);
     let search_page = NavigationPage::new(&search_widgets.root, "Search");
+    search_page.set_can_pop(false);
+    search_widgets.setup_esc_navigation(&nav_view);
 
     let login_widgets = build(state, auth_sender.clone());
 
