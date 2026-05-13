@@ -4,7 +4,7 @@
 //! an empty `StatusPage` and a `ListView` with `SignalListItemFactory`.
 //! Matches the original `qobuz-downloader-rs` download page UX.
 
-use std::{cell::RefCell, collections::HashMap, rc::Rc, sync::Arc};
+use std::{collections::HashMap, rc::Rc, sync::Arc};
 
 use {
     async_channel::{Receiver, Sender},
@@ -13,7 +13,7 @@ use {
         PreferencesGroup, StatusPage,
         gdk::Texture,
         gio::{ListStore, spawn_blocking},
-        glib::{BoxedAnyObject, MainContext, Object},
+        glib::{BoxedAnyObject, MainContext, Object, object::ObjectType},
         gtk::{
             Align::{Center, Start},
             Box, Button,
@@ -44,9 +44,6 @@ use crate::{
         DownloadTask, cancel_all_tasks,
     },
 };
-
-/// Shared mapping from list-item address to the bound task ID for cancel buttons.
-type CancelCellMap = HashMap<usize, Rc<RefCell<Option<Uuid>>>>;
 
 /// Widgets for the embedded download queue section (no `ToolbarView` wrapping).
 #[derive(Clone)]
@@ -127,11 +124,16 @@ pub fn build_queue_section(
     stack.add_named(&empty_page, Some("empty"));
 
     let model = ListStore::new::<BoxedAnyObject>();
+    let tasks_for_factory = Arc::clone(tasks);
     let cmd_sender_rc = Rc::new(cmd_sender);
     let no_selection = NoSelection::new(Some(model.clone()));
     let queue_list = ListView::new(
         Some(no_selection),
-        Some(setup_download_queue_factory(&cmd_sender_rc)),
+        Some(setup_download_queue_factory(
+            &cmd_sender_rc,
+            &tasks_for_factory,
+            &model,
+        )),
     );
 
     let scrolled = ScrolledWindow::builder()
@@ -160,6 +162,7 @@ pub fn build_queue_section(
         setup_cancel_all(
             &cancel_all_button,
             Arc::clone(&tasks_owned),
+            Rc::clone(&cmd_sender_rc),
             model.clone(),
             stack.clone(),
         );
@@ -176,50 +179,91 @@ pub fn build_queue_section(
 fn setup_cancel_all(
     button: &Button,
     tasks: Arc<Mutex<HashMap<Uuid, DownloadTask>>>,
+    cmd_sender: Rc<Sender<DownloadCommand>>,
     model: ListStore,
     stack: Stack,
 ) {
     button.connect_clicked(move |_| {
+        let ids: Vec<Uuid> = {
+            let map = tasks.lock();
+            map.iter()
+                .filter(|(_, t)| matches!(t.status, Queued | Active))
+                .map(|(id, _)| *id)
+                .collect()
+        };
+        ids.iter()
+            .map(|&id| Cancel { id })
+            .for_each(|cmd| send_cancel_command(&cmd_sender, cmd));
         cancel_all_tasks(&tasks);
         model.remove_all();
         stack.set_visible_child_name("empty");
     });
 }
 
-/// Wires the cancel button to send a `Cancel` command for the associated task.
+/// Sends a cancel command via the sender, logging failures.
+fn send_cancel_command(cmd_sender: &Rc<Sender<DownloadCommand>>, cmd: DownloadCommand) {
+    if let Err(e) = cmd_sender.try_send(cmd) {
+        error!(error = %e, "Failed to send cancel command");
+    }
+}
+
+/// Wires the cancel button to send a `Cancel` command and update the UI immediately.
+/// The task ID is looked up from a shared map keyed by button pointer address.
 fn wire_cancel_button(
     button: &Button,
-    task_id_cell: &Rc<RefCell<Option<Uuid>>>,
     cmd_sender: &Rc<Sender<DownloadCommand>>,
+    tasks: &Arc<Mutex<HashMap<Uuid, DownloadTask>>>,
+    model: &ListStore,
+    task_map: &Arc<Mutex<HashMap<usize, Uuid>>>,
 ) {
-    let task_id_cell = Rc::clone(task_id_cell);
     let cmd_sender = Rc::clone(cmd_sender);
+    let tasks = Arc::clone(tasks);
+    let model = model.clone();
+    let task_map = Arc::clone(task_map);
+    let btn_key = button.as_ptr() as usize;
+
     button.connect_clicked(move |_| {
-        if let Some(id) = *task_id_cell.borrow()
-            && let Err(e) = cmd_sender.send_blocking(Cancel { id })
-        {
-            error!(error = %e, "Failed to send cancel command");
-        }
+        let Some(id) = task_map.lock().get(&btn_key).copied() else {
+            return;
+        };
+        send_cancel_command(&cmd_sender, Cancel { id });
+        mark_task_cancelled(&tasks, id);
+        refresh_model_item(&model, &id, &tasks);
     });
 }
 
-/// Sets up the `SignalListItemFactory` for download queue items.
-fn setup_download_queue_factory(cmd_sender: &Rc<Sender<DownloadCommand>>) -> SignalListItemFactory {
-    let factory = SignalListItemFactory::new();
-    let cells: Rc<RefCell<CancelCellMap>> = Rc::new(RefCell::new(HashMap::new()));
+/// Marks a task as cancelled in the tasks map.
+fn mark_task_cancelled(tasks: &Arc<Mutex<HashMap<Uuid, DownloadTask>>>, id: Uuid) {
+    let mut map = tasks.lock();
+    if let Some(t) = map.get_mut(&id) {
+        t.status = Cancelled;
+        t.completed_at = Some(Local::now());
+    }
+}
 
+/// Sets up the `SignalListItemFactory` for download queue items.
+fn setup_download_queue_factory(
+    cmd_sender: &Rc<Sender<DownloadCommand>>,
+    tasks: &Arc<Mutex<HashMap<Uuid, DownloadTask>>>,
+    model: &ListStore,
+) -> SignalListItemFactory {
+    let factory = SignalListItemFactory::new();
+    let tasks = Arc::clone(tasks);
+    let task_map: Arc<Mutex<HashMap<usize, Uuid>>> = Arc::new(Mutex::new(HashMap::new()));
     factory.connect_setup({
         let cmd_sender = Rc::clone(cmd_sender);
-        let cells = Rc::clone(&cells);
+        let tasks = Arc::clone(&tasks);
+        let model = model.clone();
+        let task_map = Arc::clone(&task_map);
         move |_, list_item_obj| {
-            setup_download_row(list_item_obj, &cmd_sender, &cells);
+            setup_download_row(list_item_obj, &cmd_sender, &tasks, &model, &task_map);
         }
     });
 
     factory.connect_bind({
-        let cells = Rc::clone(&cells);
+        let task_map = Arc::clone(&task_map);
         move |_, list_item_obj| {
-            bind_download_row(list_item_obj, &cells);
+            bind_download_row(list_item_obj, &task_map);
         }
     });
 
@@ -230,7 +274,9 @@ fn setup_download_queue_factory(cmd_sender: &Rc<Sender<DownloadCommand>>) -> Sig
 fn setup_download_row(
     list_item_obj: &Object,
     cmd_sender: &Rc<Sender<DownloadCommand>>,
-    cells: &Rc<RefCell<CancelCellMap>>,
+    tasks: &Arc<Mutex<HashMap<Uuid, DownloadTask>>>,
+    model: &ListStore,
+    task_map: &Arc<Mutex<HashMap<usize, Uuid>>>,
 ) {
     let Some(list_item) = list_item_obj.downcast_ref::<ListItem>() else {
         return;
@@ -295,18 +341,13 @@ fn setup_download_row(
     main_box.append(&progress_container);
     main_box.append(&action_container);
 
-    let task_id_cell: Rc<RefCell<Option<Uuid>>> = Rc::new(RefCell::new(None));
-
-    wire_cancel_button(&cancel_button, &task_id_cell, cmd_sender);
-
-    let key = std::ptr::from_ref(list_item) as usize;
-    cells.borrow_mut().insert(key, Rc::clone(&task_id_cell));
+    wire_cancel_button(&cancel_button, cmd_sender, tasks, model, task_map);
 
     list_item.set_child(Some(&main_box));
 }
 
 /// Binds download task data to row widgets within a `ListItem`.
-fn bind_download_row(list_item_obj: &Object, cells: &Rc<RefCell<CancelCellMap>>) {
+fn bind_download_row(list_item_obj: &Object, task_map: &Arc<Mutex<HashMap<usize, Uuid>>>) {
     let Some(list_item) = list_item_obj.downcast_ref::<ListItem>() else {
         return;
     };
@@ -363,13 +404,7 @@ fn bind_download_row(list_item_obj: &Object, cells: &Rc<RefCell<CancelCellMap>>)
     }
     if let Some(btn) = cancel_button {
         update_cancel_button(&btn, &task);
-    }
-
-    {
-        let key = std::ptr::from_ref(list_item) as usize;
-        if let Some(cell) = cells.borrow().get(&key).cloned() {
-            *cell.borrow_mut() = Some(task.id);
-        }
+        task_map.lock().insert(btn.as_ptr() as usize, task.id);
     }
 
     load_cover_texture(&cover_image, &task, texture.as_ref(), &boxed);
@@ -573,8 +608,10 @@ fn handle_event(
         }
         Failed { id, .. } => {
             let mut map = tasks.lock();
-            if let Some(task) = map.get_mut(id) {
+            if let Some(task) = map.get_mut(id).filter(|t| t.status != Cancelled) {
                 task.status = ItemFailed;
+            }
+            if let Some(task) = map.get_mut(id) {
                 task.completed_at = Some(Local::now());
             }
             drop(map);
