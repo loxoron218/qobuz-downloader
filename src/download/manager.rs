@@ -268,7 +268,7 @@ fn handle_enqueued_download(
             &task.item,
             task.quality,
             task.output_dir.as_path(),
-            &cancel_flag,
+            Arc::clone(&cancel_flag),
             progress_callback,
         )
     };
@@ -379,7 +379,7 @@ fn execute_download<F>(
     item: &DownloadItem,
     quality: Quality,
     output_dir: &Path,
-    cancel: &AtomicBool,
+    cancel: Arc<AtomicBool>,
     progress_callback: F,
 ) -> Result<PathBuf, AppError>
 where
@@ -406,33 +406,41 @@ where
                     &track_ids,
                     format_id,
                     &album_dir,
-                    cancel,
+                    cancel.as_ref(),
                     &progress_callback,
                 )
             }
-            Artist { artist_id, .. } => execute_artist_download(
-                &mut api,
-                *artist_id,
-                format_id,
-                output_dir,
-                cancel,
-                progress_callback,
-            ),
-            Playlist {
-                playlist_id, title, ..
-            } => {
-                let playlist_dir = output_dir.join(sanitize_filename(title));
-                let track_ids = extract_playlist_track_ids(&api, playlist_id)?;
-                let total = u32::try_from(track_ids.len()).unwrap_or_default();
-                let progress_callback = move |completed: u32| progress_callback(completed, total);
-                download_playlist_tracks(
-                    &mut api,
-                    track_ids,
-                    format_id,
-                    &playlist_dir,
-                    cancel,
-                    progress_callback,
-                )
+            Artist { artist_id, .. } => {
+                let paths = api
+                    .download_artist_cancellable(
+                        *artist_id,
+                        format_id,
+                        output_dir,
+                        None,
+                        None,
+                        Some(cancel),
+                    )
+                    .map_err(AppError::from)?;
+                paths
+                    .into_iter()
+                    .next()
+                    .ok_or_else(|| Download("No tracks downloaded for artist".to_string()))
+            }
+            Playlist { playlist_id, .. } => {
+                let paths = api
+                    .download_playlist_cancellable(
+                        playlist_id,
+                        format_id,
+                        output_dir,
+                        None,
+                        None,
+                        Some(cancel),
+                    )
+                    .map_err(AppError::from)?;
+                paths
+                    .into_iter()
+                    .next()
+                    .ok_or_else(|| Download("No tracks downloaded".to_string()))
             }
             Track { track_id, .. } => {
                 let track = api.get_track(*track_id).map_err(AppError::from)?;
@@ -451,31 +459,17 @@ where
                 let track_dir = output_dir
                     .join(sanitize_filename(artist_name))
                     .join(sanitize_filename(album_title));
-                api.download_track_cancellable(*track_id, format_id, &track_dir, None, Some(cancel))
-                    .map_err(AppError::from)
+                api.download_track_cancellable(
+                    *track_id,
+                    format_id,
+                    &track_dir,
+                    None,
+                    Some(cancel.as_ref()),
+                )
+                .map_err(AppError::from)
             }
         }
     }
-}
-
-/// Extracts track IDs from a playlist.
-///
-/// # Errors
-///
-/// Returns `Download` if the playlist has no tracks.
-fn extract_playlist_track_ids(
-    api: &QobuzApiService,
-    playlist_id: &str,
-) -> Result<Vec<i32>, AppError> {
-    let playlist = api
-        .get_playlist(playlist_id, Some("tracks"))
-        .map_err(AppError::from)?;
-    playlist
-        .tracks
-        .and_then(|t| t.items)
-        .map(|items| items.into_iter().filter_map(|t| t.id).collect())
-        .filter(|ids: &Vec<i32>| !ids.is_empty())
-        .ok_or_else(|| Download("No tracks in playlist".to_string()))
 }
 
 /// Downloads all tracks from an album.
@@ -524,148 +518,4 @@ where
         progress_callback(completed, total);
     }
     last_path.ok_or_else(|| Download("No tracks downloaded".to_string()))
-}
-
-/// Downloads all tracks from a playlist.
-///
-/// # Arguments
-///
-/// * `api` - API service reference
-/// * `track_ids` - List of track IDs to download
-/// * `format_id` - Audio format ID for download
-/// * `output_dir` - Output directory for downloaded files
-/// * `cancel` - Cancellation flag checked between tracks
-/// * `progress_callback` - Called after each track download with (completed, total)
-///
-/// # Errors
-///
-/// Returns `Download` if no tracks could be downloaded.
-fn download_playlist_tracks<F>(
-    api: &mut QobuzApiService,
-    track_ids: Vec<i32>,
-    format_id: i32,
-    output_dir: &Path,
-    cancel: &AtomicBool,
-    progress_callback: F,
-) -> Result<PathBuf, AppError>
-where
-    F: Fn(u32) + Send + Sync + 'static,
-{
-    let mut last_path = None;
-    let mut completed = 0;
-    for track_id in track_ids {
-        if cancel.load(Relaxed) {
-            return Err(Download("Download cancelled".to_string()));
-        }
-        match api.download_track_cancellable(track_id, format_id, output_dir, None, Some(cancel)) {
-            Ok(path) => last_path = Some(path),
-            Err(Canceled) => {
-                return Err(Download("Download cancelled".to_string()));
-            }
-            Err(e)
-                if e.to_string().contains("416")
-                    || e.to_string().contains("Range Not Satisfiable") =>
-            {
-                info!(
-                    track_id,
-                    "File unavailable or already exists (416), skipping"
-                );
-            }
-            Err(e) if last_path.is_none() => return Err(AppError::from(e)),
-            Err(_) => {}
-        }
-        completed += 1;
-        progress_callback(completed);
-    }
-    last_path.ok_or_else(|| Download("No tracks downloaded".to_string()))
-}
-
-/// Downloads all albums by an artist via the release list.
-///
-/// # Arguments
-///
-/// * `api` - API service reference
-/// * `artist_id` - Artist ID
-/// * `format_id` - Audio format ID for download
-/// * `output_dir` - Output directory for downloaded files
-/// * `cancel` - Cancellation flag checked between albums
-/// * `progress_callback` - Called after each album download with (completed, total)
-///
-/// # Errors
-///
-/// Returns `Api` if the release list API call fails, or `Download` if no albums could be
-/// downloaded.
-fn execute_artist_download<F>(
-    api: &mut QobuzApiService,
-    artist_id: i32,
-    format_id: i32,
-    output_dir: &Path,
-    cancel: &AtomicBool,
-    progress_callback: F,
-) -> Result<PathBuf, AppError>
-where
-    F: Fn(u32, u32) + Send + Sync + 'static,
-{
-    let releases = api
-        .get_release_list(artist_id, Some(50), None)
-        .map_err(AppError::from)?;
-    let album_items = releases.items.unwrap_or_default();
-    if album_items.is_empty() {
-        return Err(Download("No releases found for artist".to_string()));
-    }
-    let total = u32::try_from(album_items.len()).unwrap_or_default();
-    let mut first_path: Option<PathBuf> = None;
-    for (completed, album_info) in album_items.iter().enumerate() {
-        let progress_completed = u32::try_from(completed + 1).unwrap_or(total);
-        let Some(album_id) = &album_info.id else {
-            progress_callback(progress_completed, total);
-            continue;
-        };
-        match download_artist_album(api, album_id, format_id, output_dir, cancel) {
-            Ok(Some(p)) if first_path.is_none() => first_path = Some(p),
-            Err(e) if is_cancelled_error(&e) => return Err(e),
-            _ => {}
-        }
-        progress_callback(progress_completed, total);
-    }
-    first_path.ok_or_else(|| Download("No tracks downloaded for artist".to_string()))
-}
-
-/// Downloads all tracks of a single album during artist download, returning the first path.
-///
-/// # Errors
-///
-/// Returns `Download` with `"Download cancelled"` if the cancellation flag is set.
-fn download_artist_album(
-    api: &mut QobuzApiService,
-    album_id: &str,
-    format_id: i32,
-    artist_base_dir: &Path,
-    cancel: &AtomicBool,
-) -> Result<Option<PathBuf>, AppError> {
-    let album = api
-        .get_album(album_id, Some("track_ids"))
-        .map_err(AppError::from)?;
-    let artist_name = album
-        .artist
-        .as_ref()
-        .and_then(|a| a.name.as_deref())
-        .unwrap_or("Unknown Artist");
-    let album_title = album.title.as_deref().unwrap_or("Unknown Album");
-    let album_dir = artist_base_dir
-        .join(sanitize_filename(artist_name))
-        .join(sanitize_filename(album_title));
-    let track_ids = album.track_ids.unwrap_or_default();
-    let mut first_path: Option<PathBuf> = None;
-    for &tid in &track_ids {
-        if cancel.load(Relaxed) {
-            return Err(Download("Download cancelled".to_string()));
-        }
-        match api.download_track_cancellable(tid, format_id, &album_dir, None, Some(cancel)) {
-            Ok(path) => first_path = Some(path),
-            Err(Canceled) => return Err(Download("Download cancelled".to_string())),
-            Err(e) => error!(track_id = tid, error = %e, "Failed to download album track"),
-        }
-    }
-    Ok(first_path)
 }
