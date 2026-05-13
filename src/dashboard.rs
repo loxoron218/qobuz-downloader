@@ -4,7 +4,11 @@
 //! button, and an embedded download queue section matching the original
 //! `qobuz-downloader-rs` layout.
 
-use std::{collections::HashMap, path::PathBuf, sync::Arc};
+use std::{
+    collections::HashMap,
+    path::PathBuf,
+    sync::{Arc, atomic::AtomicBool},
+};
 
 use {
     async_channel::{Receiver, Sender, bounded},
@@ -411,11 +415,13 @@ fn build_download_item(parsed: &ParsedUrl, meta: &FetchedMeta) -> DownloadItem {
 /// * `cmd_sender` - Channel sender for download commands
 /// * `evt_receiver` - Channel receiver for download events
 /// * `tasks` - Shared task map from the download manager
+/// * `cancel_signals` - Shared cancel signals map for direct cancellation
 pub fn build(
     state: &AppState,
     cmd_sender: Sender<DownloadCommand>,
     evt_receiver: Receiver<DownloadEvent>,
     tasks: &Arc<Mutex<HashMap<Uuid, DownloadTask>>>,
+    cancel_signals: &Arc<Mutex<HashMap<Uuid, Arc<AtomicBool>>>>,
 ) -> DashboardWidgets {
     let toolbar = ToolbarView::new();
     let header = HeaderBar::new();
@@ -470,7 +476,8 @@ pub fn build(
 
     main_box.append(&download_group);
 
-    let queue_section = build_queue_section(evt_receiver, cmd_sender.clone(), tasks);
+    let queue_section =
+        build_queue_section(evt_receiver, cmd_sender.clone(), tasks, cancel_signals);
     main_box.append(&queue_section.group);
 
     main_clamp.set_child(Some(&main_box));

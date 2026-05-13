@@ -75,6 +75,7 @@ pub fn build_window(app: &Application, state: &AppState) -> ApplicationWindow {
         download_manager.cmd_sender(),
         download_manager.evt_receiver(),
         &download_manager.tasks_handle(),
+        &download_manager.cancel_signals_handle(),
     );
     let dashboard_page = NavigationPage::new(&dashboard_widgets.root, "Dashboard");
 

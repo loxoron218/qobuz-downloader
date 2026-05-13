@@ -293,11 +293,14 @@ impl From<Quality> for i32 {
     }
 }
 
-/// Cancels all queued and active tasks and clears the task map.
+/// Marks all queued and active tasks as cancelled.
+///
+/// Does NOT clear the map — workers need to check task status
+/// when processing enqueued commands.
 ///
 /// # Arguments
 ///
-/// * `tasks` - The task map to clear
+/// * `tasks` - The task map to update
 pub fn cancel_all_tasks(tasks: &Mutex<HashMap<Uuid, DownloadTask>>) {
     let mut map = tasks.lock();
     for task in map
@@ -307,5 +310,4 @@ pub fn cancel_all_tasks(tasks: &Mutex<HashMap<Uuid, DownloadTask>>) {
         task.status = DownloadStatus::Cancelled;
         task.completed_at = Some(Local::now());
     }
-    map.clear();
 }

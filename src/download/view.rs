@@ -4,7 +4,14 @@
 //! an empty `StatusPage` and a `ListView` with `SignalListItemFactory`.
 //! Matches the original `qobuz-downloader-rs` download page UX.
 
-use std::{collections::HashMap, rc::Rc, sync::Arc};
+use std::{
+    collections::HashMap,
+    rc::Rc,
+    sync::{
+        Arc,
+        atomic::{AtomicBool, Ordering::Relaxed},
+    },
+};
 
 use {
     async_channel::{Receiver, Sender},
@@ -77,6 +84,7 @@ pub fn build_queue_section(
     evt_receiver: Receiver<DownloadEvent>,
     cmd_sender: Sender<DownloadCommand>,
     tasks: &Arc<Mutex<HashMap<Uuid, DownloadTask>>>,
+    cancel_signals: &Arc<Mutex<HashMap<Uuid, Arc<AtomicBool>>>>,
 ) -> QueueSection {
     let download_queue_group = PreferencesGroup::builder().build();
 
@@ -158,11 +166,13 @@ pub fn build_queue_section(
         let model = model;
         let stack = stack;
         let tasks_owned = Arc::clone(tasks);
+        let cancel_signals = Arc::clone(cancel_signals);
 
         setup_cancel_all(
             &cancel_all_button,
             Arc::clone(&tasks_owned),
             Rc::clone(&cmd_sender_rc),
+            cancel_signals,
             model.clone(),
             stack.clone(),
         );
@@ -175,11 +185,23 @@ pub fn build_queue_section(
     }
 }
 
+/// Sets cancel flags for all given task IDs.
+fn set_cancel_signals(ids: &[Uuid], cancel_signals: &Mutex<HashMap<Uuid, Arc<AtomicBool>>>) {
+    let mut signals = cancel_signals.lock();
+    for &id in ids {
+        signals
+            .entry(id)
+            .or_insert_with(|| Arc::new(AtomicBool::new(false)))
+            .store(true, Relaxed);
+    }
+}
+
 /// Sets up the "Cancel All" button signal handler.
 fn setup_cancel_all(
     button: &Button,
     tasks: Arc<Mutex<HashMap<Uuid, DownloadTask>>>,
     cmd_sender: Rc<Sender<DownloadCommand>>,
+    cancel_signals: Arc<Mutex<HashMap<Uuid, Arc<AtomicBool>>>>,
     model: ListStore,
     stack: Stack,
 ) {
@@ -191,9 +213,13 @@ fn setup_cancel_all(
                 .map(|(id, _)| *id)
                 .collect()
         };
-        ids.iter()
-            .map(|&id| Cancel { id })
-            .for_each(|cmd| send_cancel_command(&cmd_sender, cmd));
+
+        set_cancel_signals(&ids, &cancel_signals);
+
+        for &id in &ids {
+            send_cancel_command(&cmd_sender, Cancel { id });
+        }
+
         cancel_all_tasks(&tasks);
         model.remove_all();
         stack.set_visible_child_name("empty");

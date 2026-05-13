@@ -58,6 +58,8 @@ pub struct DownloadManager {
     evt_receiver: Receiver<DownloadEvent>,
     /// Tracked download tasks.
     tasks: Arc<Mutex<HashMap<Uuid, DownloadTask>>>,
+    /// Per-task cancellation signals, exposed for UI direct flag-setting.
+    cancel_signals: Arc<Mutex<HashMap<Uuid, Arc<AtomicBool>>>>,
 }
 
 impl DownloadManager {
@@ -73,6 +75,7 @@ impl DownloadManager {
             evt_sender,
             evt_receiver,
             tasks: Arc::new(Mutex::new(HashMap::new())),
+            cancel_signals: Arc::new(Mutex::new(HashMap::new())),
         }
     }
 
@@ -91,6 +94,11 @@ impl DownloadManager {
         Arc::clone(&self.tasks)
     }
 
+    /// Returns a shared handle to the cancel signals map for direct cancellation.
+    pub fn cancel_signals_handle(&self) -> Arc<Mutex<HashMap<Uuid, Arc<AtomicBool>>>> {
+        Arc::clone(&self.cancel_signals)
+    }
+
     /// Starts the download worker loop in a background thread.
     pub fn start_worker(&self) {
         let api_service = Arc::clone(&self.api_service);
@@ -98,6 +106,7 @@ impl DownloadManager {
         let cmd_receiver = self.cmd_receiver.clone();
         let evt_sender = self.evt_sender.clone();
         let tasks = Arc::clone(&self.tasks);
+        let cancel_signals = Arc::clone(&self.cancel_signals);
 
         spawn_blocking(move || {
             run_download_worker(
@@ -106,6 +115,7 @@ impl DownloadManager {
                 &evt_sender,
                 &api_service,
                 &tasks,
+                &cancel_signals,
             );
         });
     }
@@ -139,10 +149,9 @@ fn run_download_worker(
     evt_sender: &Sender<DownloadEvent>,
     api_service: &Arc<Mutex<QobuzApiService>>,
     tasks: &Arc<Mutex<HashMap<Uuid, DownloadTask>>>,
+    cancel_signals: &Arc<Mutex<HashMap<Uuid, Arc<AtomicBool>>>>,
 ) {
     let shutdown = Arc::new(AtomicBool::new(false));
-    let cancel_signals: Arc<Mutex<HashMap<Uuid, Arc<AtomicBool>>>> =
-        Arc::new(Mutex::new(HashMap::new()));
 
     scope(|s| {
         let ctx = WorkerCtx {
@@ -151,7 +160,7 @@ fn run_download_worker(
             evt_sender,
             api_service,
             tasks,
-            cancel_signals: &cancel_signals,
+            cancel_signals,
             shutdown: &shutdown,
         };
         for _ in 0..WORKER_COUNT {
@@ -228,6 +237,15 @@ fn handle_enqueued_download(
     task: &DownloadTask,
 ) {
     let task_id = task.id;
+
+    // Don't start if the task was already cancelled (e.g., by Cancel All or individual cancel)
+    if tasks
+        .lock()
+        .get(&task_id)
+        .is_some_and(|t| t.status == Cancelled)
+    {
+        return;
+    }
 
     let cancel_flag = Arc::new(AtomicBool::new(false));
     cancel_signals
