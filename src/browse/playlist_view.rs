@@ -1,6 +1,17 @@
 //! Playlist detail view UI.
 
-use {libadwaita::ToastOverlay, qobuz_api_rust_refactor::models::playlist::Playlist};
+use std::sync::Arc;
+
+use {
+    async_channel::Sender,
+    libadwaita::{
+        ToastOverlay, ToolbarView,
+        gtk::{Box, Button, DropDown, Label, Orientation::Vertical},
+        prelude::{BoxExt, WidgetExt},
+    },
+    parking_lot::Mutex,
+    qobuz_api_rust_refactor::models::playlist::Playlist,
+};
 
 use crate::{
     browse::detail_common::{
@@ -11,9 +22,6 @@ use crate::{
     download::progress::{DownloadCommand, DownloadItem::Playlist as PlaylistItem, DownloadTask},
     preferences::settings::AppSettings,
 };
-
-// Shared imports (Arc, Sender, ToolbarView, Box, Button, DropDown, Label, Mutex…)
-include!("common_imports.rs");
 
 /// Widgets returned by the playlist detail view builder.
 #[derive(Clone)]

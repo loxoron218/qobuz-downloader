@@ -1,10 +1,18 @@
 //! Album detail view UI.
 
+use std::sync::Arc;
+
 use {
+    async_channel::Sender,
     libadwaita::{
-        ToastOverlay,
-        gtk::{Align::Start, Image, pango::EllipsizeMode::End},
+        ToastOverlay, ToolbarView,
+        gtk::{
+            Align::Start, Box, Button, DropDown, Image, Label, Orientation::Vertical,
+            pango::EllipsizeMode::End,
+        },
+        prelude::{BoxExt, WidgetExt},
     },
+    parking_lot::Mutex,
     qobuz_api_rust_refactor::models::{album::Album, track::Track},
 };
 
@@ -17,9 +25,6 @@ use crate::{
     download::progress::{DownloadCommand, DownloadItem, DownloadTask},
     preferences::settings::AppSettings,
 };
-
-// Shared imports (Arc, Sender, ToolbarView, Box, Button, DropDown, Label, Mutex…)
-include!("common_imports.rs");
 
 /// Widgets returned by the album detail view builder.
 #[derive(Clone)]
