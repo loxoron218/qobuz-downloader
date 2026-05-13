@@ -19,7 +19,8 @@ use {
     libadwaita::gio::spawn_blocking,
     parking_lot::Mutex,
     qobuz_api_rust_refactor::{
-        api::service::QobuzApiService, errors::QobuzApiError::Canceled, sanitize::sanitize_filename,
+        api::service::QobuzApiService, errors::QobuzApiError::Canceled,
+        metadata::config::MetadataConfig, sanitize::sanitize_filename,
     },
     tracing::{error, info},
     uuid::Uuid,
@@ -434,7 +435,7 @@ where
                         *artist_id,
                         format_id,
                         output_dir,
-                        None,
+                        Some(&MetadataConfig::default()),
                         None,
                         Some(cancel),
                     )
@@ -450,7 +451,7 @@ where
                         playlist_id,
                         format_id,
                         output_dir,
-                        None,
+                        Some(&MetadataConfig::default()),
                         None,
                         Some(cancel),
                     )
@@ -481,7 +482,7 @@ where
                     *track_id,
                     format_id,
                     &track_dir,
-                    None,
+                    Some(&MetadataConfig::default()),
                     Some(cancel.as_ref()),
                 )
                 .map_err(AppError::from)
@@ -521,7 +522,13 @@ where
         if cancel.load(Relaxed) {
             return Err(Download("Download cancelled".to_string()));
         }
-        match api.download_track_cancellable(tid, format_id, output_dir, None, Some(cancel)) {
+        match api.download_track_cancellable(
+            tid,
+            format_id,
+            output_dir,
+            Some(&MetadataConfig::default()),
+            Some(cancel),
+        ) {
             Ok(path) => {
                 last_path = Some(path);
             }
