@@ -71,9 +71,9 @@ fn connect_folder_picker(
         file_dialog.set_title("Select Download Directory");
 
         let dir_path = selected_dir.lock().to_path_buf();
-        let _ = dir_path
-            .parent()
-            .map(|parent| file_dialog.set_initial_folder(Some(&File::for_path(parent))));
+        if let Some(parent) = dir_path.parent() {
+            file_dialog.set_initial_folder(Some(&File::for_path(parent)));
+        }
 
         let dir_row = dir_row.clone();
         let selected_dir = Arc::clone(&selected_dir);
