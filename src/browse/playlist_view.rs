@@ -8,10 +8,7 @@ use crate::{
         build_detail_controls, build_header_scroll, build_item_section, build_track_row,
         connect_download_click, send_enqueue, strip_html_tags,
     },
-    download::{
-        progress::{DownloadCommand, DownloadItem::Playlist as PlaylistItem, DownloadTask},
-        worker::album_output_dir,
-    },
+    download::progress::{DownloadCommand, DownloadItem::Playlist as PlaylistItem, DownloadTask},
     preferences::settings::AppSettings,
 };
 
@@ -147,14 +144,12 @@ fn wire_download_button(
         quality_dropdown,
         settings,
         move |quality, base_dir| {
-            let playlist_dir = album_output_dir(&base_dir, "Playlists", &playlist_title, quality);
-
             let item = PlaylistItem {
                 playlist_id: id.clone(),
                 title: playlist_title.clone(),
                 cover_url: cover_url.clone(),
             };
-            let task = DownloadTask::new(item, quality, playlist_dir);
+            let task = DownloadTask::new(item, quality, base_dir);
             send_enqueue(&cmd_sender, task);
         },
     );

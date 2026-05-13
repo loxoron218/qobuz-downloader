@@ -24,7 +24,6 @@ use {
     qobuz_api_rust_refactor::{
         api::service::QobuzApiService,
         models::{album::Album, artist::Artist},
-        sanitize::sanitize_filename,
     },
 };
 
@@ -37,7 +36,7 @@ use crate::{
             load_cover_art, resolve_image_url, send_enqueue, strip_html_tags,
         },
     },
-    download::progress::{DownloadCommand, DownloadItem::Album as ItemAlbum, DownloadTask},
+    download::progress::{DownloadCommand, DownloadItem::Artist as ItemArtist, DownloadTask},
     preferences::settings::AppSettings,
 };
 
@@ -119,7 +118,6 @@ pub fn build(
         &download_button,
         &quality_dropdown,
         artist,
-        albums,
         settings,
         cmd_sender,
     );
@@ -257,12 +255,11 @@ fn attach_album_nav_handler(
     });
 }
 
-/// Wires the download button to enqueue all artist albums as individual downloads.
+/// Wires the download button to enqueue the entire artist as a single download task.
 fn wire_download_button(
     button: &Button,
     quality_dropdown: &DropDown,
     artist: &Artist,
-    albums: &[Album],
     settings: Arc<Mutex<AppSettings>>,
     cmd_sender: Sender<DownloadCommand>,
 ) {
@@ -271,34 +268,21 @@ fn wire_download_button(
         .as_deref()
         .unwrap_or("Unknown Artist")
         .to_string();
-
-    let album_info: Vec<(String, String)> = albums
-        .iter()
-        .filter_map(|a| {
-            let id = a.id.clone()?;
-            let title = a.title.as_deref().unwrap_or("Unknown Album").to_string();
-            Some((id, title))
-        })
-        .collect();
+    let artist_id = artist.id.unwrap_or(0);
+    let cover_url = resolve_image_url(artist.image.as_ref().or(artist.picture.as_ref()));
 
     connect_download_click(
         button,
         quality_dropdown,
         settings,
         move |quality, base_dir| {
-            for (album_id, album_title) in &album_info {
-                let safe_artist = sanitize_filename(&artist_name);
-                let safe_album = sanitize_filename(album_title);
-                let album_dir = base_dir.join(&safe_artist).join(&safe_album);
-                let item = ItemAlbum {
-                    album_id: album_id.clone(),
-                    title: album_title.clone(),
-                    artist: artist_name.clone(),
-                    cover_url: None,
-                };
-                let task = DownloadTask::new(item, quality, album_dir);
-                send_enqueue(&cmd_sender, task);
-            }
+            let item = ItemArtist {
+                artist_id,
+                name: artist_name.clone(),
+                cover_url: cover_url.clone(),
+            };
+            let task = DownloadTask::new(item, quality, base_dir);
+            send_enqueue(&cmd_sender, task);
         },
     );
 }

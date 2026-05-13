@@ -18,7 +18,9 @@ use {
     chrono::Local,
     libadwaita::gio::spawn_blocking,
     parking_lot::Mutex,
-    qobuz_api_rust_refactor::{api::service::QobuzApiService, errors::QobuzApiError::Canceled},
+    qobuz_api_rust_refactor::{
+        api::service::QobuzApiService, errors::QobuzApiError::Canceled, sanitize::sanitize_filename,
+    },
     tracing::{error, info},
     uuid::Uuid,
 };
@@ -388,16 +390,22 @@ where
     {
         let mut api = api_service.lock();
         match item {
-            Album { album_id, .. } => {
+            Album {
+                album_id,
+                title,
+                artist,
+                ..
+            } => {
                 let album = api
                     .get_album(album_id, Some("track_ids"))
                     .map_err(AppError::from)?;
                 let track_ids = album.track_ids.unwrap_or_default();
+                let album_dir = album_output_dir(output_dir, artist, title, quality);
                 download_album_tracks(
                     &mut api,
                     &track_ids,
                     format_id,
-                    output_dir,
+                    &album_dir,
                     cancel,
                     &progress_callback,
                 )
@@ -413,7 +421,7 @@ where
             Playlist {
                 playlist_id, title, ..
             } => {
-                let playlist_dir = album_output_dir(output_dir, "Playlists", title, quality);
+                let playlist_dir = output_dir.join(sanitize_filename(title));
                 let track_ids = extract_playlist_track_ids(&api, playlist_id)?;
                 let total = u32::try_from(track_ids.len()).unwrap_or_default();
                 let progress_callback = move |completed: u32| progress_callback(completed, total);
@@ -426,9 +434,26 @@ where
                     progress_callback,
                 )
             }
-            Track { track_id, .. } => api
-                .download_track_cancellable(*track_id, format_id, output_dir, None, Some(cancel))
-                .map_err(AppError::from),
+            Track { track_id, .. } => {
+                let track = api.get_track(*track_id).map_err(AppError::from)?;
+                let album_artist = track
+                    .album
+                    .as_ref()
+                    .and_then(|a| a.artist.as_ref())
+                    .and_then(|ar| ar.name.as_deref());
+                let performer = track.performer.as_ref().and_then(|p| p.name.as_deref());
+                let artist_name = album_artist.or(performer).unwrap_or("Unknown Artist");
+                let album_title = track
+                    .album
+                    .as_ref()
+                    .and_then(|a| a.title.as_deref())
+                    .unwrap_or("Unknown Album");
+                let track_dir = output_dir
+                    .join(sanitize_filename(artist_name))
+                    .join(sanitize_filename(album_title));
+                api.download_track_cancellable(*track_id, format_id, &track_dir, None, Some(cancel))
+                    .map_err(AppError::from)
+            }
         }
     }
 }
@@ -590,30 +615,57 @@ where
     }
     let total = u32::try_from(album_items.len()).unwrap_or_default();
     let mut first_path: Option<PathBuf> = None;
-    let mut completed = 0;
-    for album in &album_items {
+    for (completed, album_info) in album_items.iter().enumerate() {
+        let progress_completed = u32::try_from(completed + 1).unwrap_or(total);
+        let Some(album_id) = &album_info.id else {
+            progress_callback(progress_completed, total);
+            continue;
+        };
+        match download_artist_album(api, album_id, format_id, output_dir, cancel) {
+            Ok(Some(p)) if first_path.is_none() => first_path = Some(p),
+            Err(e) if is_cancelled_error(&e) => return Err(e),
+            _ => {}
+        }
+        progress_callback(progress_completed, total);
+    }
+    first_path.ok_or_else(|| Download("No tracks downloaded for artist".to_string()))
+}
+
+/// Downloads all tracks of a single album during artist download, returning the first path.
+///
+/// # Errors
+///
+/// Returns `Download` with `"Download cancelled"` if the cancellation flag is set.
+fn download_artist_album(
+    api: &mut QobuzApiService,
+    album_id: &str,
+    format_id: i32,
+    artist_base_dir: &Path,
+    cancel: &AtomicBool,
+) -> Result<Option<PathBuf>, AppError> {
+    let album = api
+        .get_album(album_id, Some("track_ids"))
+        .map_err(AppError::from)?;
+    let artist_name = album
+        .artist
+        .as_ref()
+        .and_then(|a| a.name.as_deref())
+        .unwrap_or("Unknown Artist");
+    let album_title = album.title.as_deref().unwrap_or("Unknown Album");
+    let album_dir = artist_base_dir
+        .join(sanitize_filename(artist_name))
+        .join(sanitize_filename(album_title));
+    let track_ids = album.track_ids.unwrap_or_default();
+    let mut first_path: Option<PathBuf> = None;
+    for &tid in &track_ids {
         if cancel.load(Relaxed) {
             return Err(Download("Download cancelled".to_string()));
         }
-        let Some(album_id) = &album.id else {
-            continue;
-        };
-        match api.download_album(album_id, format_id, output_dir, None, None) {
-            Ok(paths) => {
-                first_path = first_path.or_else(|| paths.into_iter().next());
-            }
-            Err(e)
-                if e.to_string().contains("416")
-                    || e.to_string().contains("Range Not Satisfiable") =>
-            {
-                info!(album = %album_id, "Album unavailable or already exists (416), skipping");
-            }
-            Err(e) => {
-                error!(error = %e, album = %album_id, "Skipping failed album in artist download");
-            }
+        match api.download_track_cancellable(tid, format_id, &album_dir, None, Some(cancel)) {
+            Ok(path) => first_path = Some(path),
+            Err(Canceled) => return Err(Download("Download cancelled".to_string())),
+            Err(e) => error!(track_id = tid, error = %e, "Failed to download album track"),
         }
-        completed += 1;
-        progress_callback(completed, total);
     }
-    first_path.ok_or_else(|| Download("No albums downloaded for artist".to_string()))
+    Ok(first_path)
 }

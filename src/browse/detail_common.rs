@@ -1,6 +1,6 @@
 //! Shared widgets and utilities for detail views.
 
-use std::{borrow::Borrow, path::PathBuf, sync::Arc};
+use std::{path::PathBuf, sync::Arc};
 
 use {
     async_channel::{Sender, bounded},
@@ -221,20 +221,6 @@ pub fn build_track_row(track: &Track) -> Box {
     }
 
     row
-}
-
-/// Collects track identifiers and titles for download wiring.
-pub fn collect_track_info(tracks: &[impl Borrow<Track>]) -> Vec<(i32, String, i32)> {
-    tracks
-        .iter()
-        .filter_map(|t| {
-            let t: &Track = t.borrow();
-            let id = t.id?;
-            let title = t.title.as_deref().unwrap_or("Unknown Track").to_string();
-            let num = t.track_number.unwrap_or(0);
-            Some((id, title, num))
-        })
-        .collect()
 }
 
 /// Builds quality dropdown row and download button, appending them to content.

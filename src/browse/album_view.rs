@@ -8,13 +8,10 @@ use {
 use crate::{
     browse::detail_common::{
         append_separator, append_title_label, append_track_count_duration, build_detail_controls,
-        build_header_scroll, build_item_section, build_track_row, collect_track_info,
-        connect_download_click, load_cover_art, resolve_image_url, send_enqueue,
+        build_header_scroll, build_item_section, build_track_row, connect_download_click,
+        load_cover_art, resolve_image_url, send_enqueue,
     },
-    download::{
-        progress::{DownloadCommand, DownloadItem, DownloadTask},
-        worker::album_output_dir,
-    },
+    download::progress::{DownloadCommand, DownloadItem, DownloadTask},
     preferences::settings::AppSettings,
 };
 
@@ -110,7 +107,6 @@ pub fn populate_tracks(
         &widgets.download_button,
         &widgets.quality_dropdown,
         album,
-        tracks,
         settings,
         cmd_sender,
     );
@@ -170,12 +166,11 @@ fn build_album_info_section(album: &Album) -> Box {
     section
 }
 
-/// Wires the download button to enqueue all album tracks as individual downloads.
+/// Wires the download button to enqueue the entire album as a single download task.
 fn wire_download_button(
     button: &Button,
     quality_dropdown: &DropDown,
     album: &Album,
-    tracks: &[Track],
     settings: Arc<Mutex<AppSettings>>,
     cmd_sender: Sender<DownloadCommand>,
 ) {
@@ -191,26 +186,21 @@ fn wire_download_button(
         .unwrap_or("Unknown Album")
         .to_string();
     let cover_url = album.image.as_ref().and_then(|img| img.thumbnail.clone());
-
-    let track_info = collect_track_info(tracks);
+    let album_id = album.id.clone().unwrap_or_default();
 
     connect_download_click(
         button,
         quality_dropdown,
         settings,
         move |quality, base_dir| {
-            let album_dir = album_output_dir(&base_dir, &artist_name, &album_title, quality);
-
-            for (track_id, track_title, _) in &track_info {
-                let item = DownloadItem::Track {
-                    track_id: *track_id,
-                    title: track_title.clone(),
-                    artist: artist_name.clone(),
-                    cover_url: cover_url.clone(),
-                };
-                let task = DownloadTask::new(item, quality, album_dir.clone());
-                send_enqueue(&cmd_sender, task);
-            }
+            let item = DownloadItem::Album {
+                album_id: album_id.clone(),
+                title: album_title.clone(),
+                artist: artist_name.clone(),
+                cover_url: cover_url.clone(),
+            };
+            let task = DownloadTask::new(item, quality, base_dir);
+            send_enqueue(&cmd_sender, task);
         },
     );
 }
