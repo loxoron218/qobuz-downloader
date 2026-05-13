@@ -5,7 +5,7 @@ use std::{path::PathBuf, sync::Arc};
 use {
     async_channel::{Sender, bounded},
     libadwaita::{
-        HeaderBar, ToolbarView,
+        HeaderBar, Toast, ToastOverlay, ToolbarView,
         gio::spawn_blocking,
         glib::MainContext,
         gtk::{
@@ -14,7 +14,7 @@ use {
             Orientation::{Horizontal, Vertical},
             Picture,
             PolicyType::Automatic,
-            ScrolledWindow, gdk,
+            ScrolledWindow, Widget, gdk,
             pango::EllipsizeMode::End,
         },
         prelude::{BoxExt, ButtonExt, TextureExt, WidgetExt},
@@ -66,6 +66,17 @@ pub fn build_header_scroll(title: &str) -> HeaderScrollWidgets {
     toolbar.set_content(Some(&scrolled));
 
     HeaderScrollWidgets { toolbar, content }
+}
+
+/// Wraps the toolbar content in a `ToastOverlay` for transient notifications.
+pub fn wrap_toast_overlay(header_scroll: &HeaderScrollWidgets) -> ToastOverlay {
+    let toast_overlay = ToastOverlay::new();
+    if let Some(child) = header_scroll.toolbar.content() {
+        header_scroll.toolbar.set_content(None::<&Widget>);
+        toast_overlay.set_child(Some(&child));
+    }
+    header_scroll.toolbar.set_content(Some(&toast_overlay));
+    toast_overlay
 }
 
 /// Creates and appends a title label with standard configuration.
@@ -244,14 +255,19 @@ pub fn connect_download_click<F>(
     button: &Button,
     quality_dropdown: &DropDown,
     settings: Arc<Mutex<AppSettings>>,
+    toast_overlay: &ToastOverlay,
     f: F,
 ) where
     F: Fn(Quality, PathBuf) + 'static,
 {
     let quality_dropdown = quality_dropdown.clone();
+    let toast_overlay = toast_overlay.clone();
     button.connect_clicked(move |_| {
         let quality = quality_from_index(quality_dropdown.selected());
         let base_dir = settings.lock().download_directory.clone();
+        let toast = Toast::new("Added to download queue");
+        toast.set_timeout(2);
+        toast_overlay.add_toast(toast);
         f(quality, base_dir);
     });
 }

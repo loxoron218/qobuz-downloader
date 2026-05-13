@@ -951,7 +951,13 @@ fn create_split_button(item: &SearchResultItem, ctx: &SearchCtx) -> SplitButton 
         let settings = Arc::clone(&ctx.settings);
         let cmd_sender = ctx.cmd_sender.clone();
         let item = download_item.clone();
-        split_button.connect_clicked(move |_| enqueue_from_settings(&settings, &cmd_sender, &item));
+        let toast_overlay = ctx.toast_overlay.clone();
+        split_button.connect_clicked(move |_| {
+            enqueue_from_settings(&settings, &cmd_sender, &item);
+            let toast = Toast::new("Added to download queue");
+            toast.set_timeout(2);
+            toast_overlay.add_toast(toast);
+        });
     }
 
     {
@@ -959,8 +965,12 @@ fn create_split_button(item: &SearchResultItem, ctx: &SearchCtx) -> SplitButton 
         let cmd_sender = ctx.cmd_sender.clone();
         let item = download_item;
         let p = popover;
+        let toast_overlay = ctx.toast_overlay.clone();
         queue_button.connect_clicked(move |_| {
             enqueue_from_settings(&settings, &cmd_sender, &item);
+            let toast = Toast::new("Added to download queue");
+            toast.set_timeout(2);
+            toast_overlay.add_toast(toast);
             p.popdown();
         });
     }

@@ -1,7 +1,10 @@
 //! Album detail view UI.
 
 use {
-    libadwaita::gtk::{Align::Start, Image, pango::EllipsizeMode::End},
+    libadwaita::{
+        ToastOverlay,
+        gtk::{Align::Start, Image, pango::EllipsizeMode::End},
+    },
     qobuz_api_rust_refactor::models::{album::Album, track::Track},
 };
 
@@ -9,7 +12,7 @@ use crate::{
     browse::detail_common::{
         append_separator, append_title_label, append_track_count_duration, build_detail_controls,
         build_header_scroll, build_item_section, build_track_row, connect_download_click,
-        load_cover_art, resolve_image_url, send_enqueue,
+        load_cover_art, resolve_image_url, send_enqueue, wrap_toast_overlay,
     },
     download::progress::{DownloadCommand, DownloadItem, DownloadTask},
     preferences::settings::AppSettings,
@@ -29,6 +32,8 @@ pub struct AlbumDetailWidgets {
     pub download_button: Button,
     /// Quality selector dropdown.
     pub quality_dropdown: DropDown,
+    /// Toast overlay for download feedback.
+    pub toast_overlay: ToastOverlay,
 }
 
 /// Builds the album detail view with metadata only (no tracks yet).
@@ -65,11 +70,14 @@ pub fn build_meta(album: &Album) -> AlbumDetailWidgets {
     loading_label.set_xalign(0.0);
     track_container.append(&loading_label);
 
+    let toast_overlay = wrap_toast_overlay(&header_scroll);
+
     AlbumDetailWidgets {
         root: header_scroll.toolbar,
         track_container,
         download_button,
         quality_dropdown,
+        toast_overlay,
     }
 }
 
@@ -109,6 +117,7 @@ pub fn populate_tracks(
         album,
         settings,
         cmd_sender,
+        &widgets.toast_overlay,
     );
 }
 
@@ -173,6 +182,7 @@ fn wire_download_button(
     album: &Album,
     settings: Arc<Mutex<AppSettings>>,
     cmd_sender: Sender<DownloadCommand>,
+    toast_overlay: &ToastOverlay,
 ) {
     let artist_name = album
         .artist
@@ -192,6 +202,7 @@ fn wire_download_button(
         button,
         quality_dropdown,
         settings,
+        toast_overlay,
         move |quality, base_dir| {
             let item = DownloadItem::Album {
                 album_id: album_id.clone(),

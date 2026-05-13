@@ -15,7 +15,6 @@ use {
             Align::Start,
             Box, Button, DropDown, GestureClick, Image, Label,
             Orientation::{Horizontal, Vertical},
-            Widget,
             pango::EllipsizeMode::End,
         },
         prelude::{BoxExt, GestureSingleExt, WidgetExt},
@@ -33,7 +32,7 @@ use crate::{
         detail_common::{
             append_separator, append_title_label, build_cover_art, build_detail_controls,
             build_header_scroll, build_item_section, connect_download_click, format_duration,
-            load_cover_art, resolve_image_url, send_enqueue, strip_html_tags,
+            load_cover_art, resolve_image_url, send_enqueue, strip_html_tags, wrap_toast_overlay,
         },
     },
     download::progress::{DownloadCommand, DownloadItem::Artist as ItemArtist, DownloadTask},
@@ -79,12 +78,7 @@ pub fn build(
     let header_scroll = build_header_scroll(name);
     let content = &header_scroll.content;
 
-    let toast_overlay = ToastOverlay::new();
-    if let Some(child) = header_scroll.toolbar.content() {
-        header_scroll.toolbar.set_content(None::<&Widget>);
-        toast_overlay.set_child(Some(&child));
-    }
-    header_scroll.toolbar.set_content(Some(&toast_overlay));
+    let toast_overlay = wrap_toast_overlay(&header_scroll);
 
     let info_section = build_artist_info_section(artist);
     content.append(&info_section);
@@ -120,6 +114,7 @@ pub fn build(
         artist,
         settings,
         cmd_sender,
+        &toast_overlay,
     );
 
     ArtistDetailWidgets {
@@ -262,6 +257,7 @@ fn wire_download_button(
     artist: &Artist,
     settings: Arc<Mutex<AppSettings>>,
     cmd_sender: Sender<DownloadCommand>,
+    toast_overlay: &ToastOverlay,
 ) {
     let artist_name = artist
         .name
@@ -275,6 +271,7 @@ fn wire_download_button(
         button,
         quality_dropdown,
         settings,
+        toast_overlay,
         move |quality, base_dir| {
             let item = ItemArtist {
                 artist_id,

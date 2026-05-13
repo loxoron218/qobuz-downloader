@@ -1,12 +1,12 @@
 //! Playlist detail view UI.
 
-use qobuz_api_rust_refactor::models::playlist::Playlist;
+use {libadwaita::ToastOverlay, qobuz_api_rust_refactor::models::playlist::Playlist};
 
 use crate::{
     browse::detail_common::{
         append_separator, append_title_label, append_track_count_duration, build_cover_art,
         build_detail_controls, build_header_scroll, build_item_section, build_track_row,
-        connect_download_click, send_enqueue, strip_html_tags,
+        connect_download_click, send_enqueue, strip_html_tags, wrap_toast_overlay,
     },
     download::progress::{DownloadCommand, DownloadItem::Playlist as PlaylistItem, DownloadTask},
     preferences::settings::AppSettings,
@@ -26,6 +26,8 @@ pub struct PlaylistDetailWidgets {
     pub download_button: Button,
     /// Quality selector dropdown.
     pub quality_dropdown: DropDown,
+    /// Toast overlay for download feedback.
+    pub toast_overlay: ToastOverlay,
 }
 
 /// Builds the playlist detail view with full metadata and tracks.
@@ -74,12 +76,15 @@ pub fn build(
         }
     }
 
+    let toast_overlay = wrap_toast_overlay(&header_scroll);
+
     wire_download_button(
         &download_button,
         &quality_dropdown,
         playlist,
         settings,
         cmd_sender,
+        &toast_overlay,
     );
 
     PlaylistDetailWidgets {
@@ -87,6 +92,7 @@ pub fn build(
         track_container,
         download_button,
         quality_dropdown,
+        toast_overlay,
     }
 }
 
@@ -129,6 +135,7 @@ fn wire_download_button(
     playlist: &Playlist,
     settings: Arc<Mutex<AppSettings>>,
     cmd_sender: Sender<DownloadCommand>,
+    toast_overlay: &ToastOverlay,
 ) {
     let playlist_title = playlist
         .name
@@ -143,6 +150,7 @@ fn wire_download_button(
         button,
         quality_dropdown,
         settings,
+        toast_overlay,
         move |quality, base_dir| {
             let item = PlaylistItem {
                 playlist_id: id.clone(),
