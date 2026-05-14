@@ -7,6 +7,7 @@ mod cover_art;
 mod dashboard;
 mod download;
 mod errors;
+mod instrument;
 mod preferences;
 mod search;
 mod types;
@@ -22,14 +23,14 @@ use {
         prelude::{ApplicationExt, ApplicationExtManual, GtkWindowExt},
     },
     qobuz_api_rust_refactor::api::service::QobuzApiService,
-    tracing::error,
-    tracing_subscriber::fmt::init,
+    tracing::{Level, error},
+    tracing_subscriber::fmt,
 };
 
 use crate::app::AppState;
 
 fn main() {
-    init();
+    fmt().with_max_level(Level::INFO).init();
 
     let app = Application::new(Some("com.qobuz.downloader"), ApplicationFlags::default());
 

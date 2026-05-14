@@ -2,7 +2,7 @@
 
 use std::sync::Arc;
 
-use {parking_lot::Mutex, qobuz_api_rust_refactor::api::service::QobuzApiService};
+use {parking_lot::Mutex, qobuz_api_rust_refactor::api::service::QobuzApiService, tracing::info};
 
 use crate::{
     auth::session::AuthState,
@@ -26,9 +26,15 @@ pub struct AppState {
 impl AppState {
     /// Creates a new `AppState` with the given API service and loaded settings.
     pub fn new(api_service: QobuzApiService) -> Self {
+        let settings = load_settings();
+        info!(
+            download_directory = %settings.download_directory.display(),
+            default_quality = %settings.default_quality,
+            "AppState initialized",
+        );
         Self {
             api_service: Arc::new(Mutex::new(api_service)),
-            settings: Arc::new(Mutex::new(load_settings())),
+            settings: Arc::new(Mutex::new(settings)),
             auth_state: Arc::new(Mutex::new(AuthState::default())),
             cover_art_cache: CoverArtCache::new(),
         }

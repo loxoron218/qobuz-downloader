@@ -1,12 +1,18 @@
 //! Main application window.
 
-use std::{cell::RefCell, collections::HashMap, sync::Arc};
+use std::{
+    cell::RefCell,
+    collections::HashMap,
+    fs::{read_dir, remove_file},
+    path::Path,
+    sync::Arc,
+};
 
 use {
     async_channel::{Receiver, Sender, unbounded},
     libadwaita::{
         Application, ApplicationWindow, HeaderBar, NavigationPage, NavigationView, ToolbarView,
-        gio::spawn_blocking,
+        gio::{prelude::ApplicationExt, spawn_blocking},
         glib::{MainContext, Propagation::Proceed},
         gtk::{Box as GtkBox, Button, Label},
         prelude::{
@@ -35,7 +41,10 @@ use crate::{
         album_view, artist_view, playlist_view,
     },
     dashboard,
-    download::{manager::DownloadManager, progress::DownloadCommand},
+    download::{
+        manager::DownloadManager,
+        progress::DownloadCommand::{self, Shutdown},
+    },
     preferences::{
         dialog,
         settings::{AppSettings, save_settings},
@@ -50,18 +59,67 @@ fn log_save_settings_error(settings: &AppSettings) {
     }
 }
 
+/// Removes orphaned `.part` files from the download directory on startup.
+fn cleanup_orphaned_part_files(download_dir: &Path) {
+    let dir = match read_dir(download_dir) {
+        Ok(d) => d,
+        Err(e) => {
+            error!(error = %e, path = %download_dir.display(), "Failed to read download dir for part cleanup");
+            return;
+        }
+    };
+    for entry in dir.flatten() {
+        let path = entry.path();
+        if path.extension().is_none_or(|ext| ext != "part") {
+            continue;
+        }
+        if let Err(e) = remove_file(&path) {
+            error!(error = %e, path = %path.display(), "Failed to remove orphaned part file");
+        } else {
+            info!(path = %path.display(), "Removed orphaned part file from previous session");
+        }
+    }
+}
+
+/// Handles shutdown: cancels active downloads, closes window to trigger settings save.
+fn handle_force_shutdown(state: &AppState, cmd_sender: &Sender<DownloadCommand>) {
+    if let Err(err) = cmd_sender.send_blocking(Shutdown) {
+        error!(error = %err, "Failed to send shutdown command during force shutdown");
+    }
+
+    let dir = state.settings.lock().download_directory.clone();
+    if dir.exists() {
+        cleanup_orphaned_part_files(&dir);
+    }
+}
+
+/// Restores saved window dimensions from settings.
+fn restore_window_size(window: &ApplicationWindow, state: &AppState) {
+    let (width, height) = {
+        let settings = state.settings.lock();
+        (settings.window_width, settings.window_height)
+    };
+    window.set_default_size(width, height);
+}
+
+/// Connects the window close handler to save geometry settings.
+fn wire_close_handler(state: &AppState, window: &ApplicationWindow) {
+    let state_close = state.clone();
+    window.connect_close_request(move |win| {
+        let mut settings = state_close.settings.lock();
+        settings.window_width = win.width();
+        settings.window_height = win.height();
+        drop(settings);
+        let settings = state_close.settings.lock();
+        log_save_settings_error(&settings);
+        Proceed
+    });
+}
+
 /// Builds and returns the main application window.
 pub fn build_window(app: &Application, state: &AppState) -> ApplicationWindow {
     let window = ApplicationWindow::new(app);
-
-    let width;
-    let height;
-    {
-        let settings = state.settings.lock();
-        width = settings.window_width;
-        height = settings.window_height;
-    }
-    window.set_default_size(width, height);
+    restore_window_size(&window, state);
 
     let (auth_sender, auth_receiver) = unbounded::<AuthEvent>();
     let (browse_sender, browse_receiver) = unbounded::<BrowseEvent>();
@@ -154,22 +212,21 @@ pub fn build_window(app: &Application, state: &AppState) -> ApplicationWindow {
         download_manager.cmd_sender(),
     );
 
+    cleanup_orphaned_part_files(&state.settings.lock().download_directory);
+
+    {
+        let state_sd = state.clone();
+        let cmd_sd = download_manager.cmd_sender();
+        app.connect_shutdown(move |_| {
+            handle_force_shutdown(&state_sd, &cmd_sd);
+        });
+    }
+
     download_manager.start_worker();
 
     attempt_keyring_login(state, &auth_sender);
 
-    {
-        let state_close = state.clone();
-        window.connect_close_request(move |win| {
-            let mut settings = state_close.settings.lock();
-            settings.window_width = win.width();
-            settings.window_height = win.height();
-            drop(settings);
-            let settings = state_close.settings.lock();
-            log_save_settings_error(&settings);
-            Proceed
-        });
-    }
+    wire_close_handler(state, &window);
 
     window.set_content(Some(&toolbar));
 

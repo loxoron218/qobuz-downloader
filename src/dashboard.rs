@@ -22,7 +22,7 @@ use {
     parking_lot::Mutex,
     qobuz_api_rust_refactor::api::service::QobuzApiService,
     regex::Regex,
-    tracing::{error, warn},
+    tracing::{error, info, warn},
     uuid::Uuid,
 };
 
@@ -497,6 +497,7 @@ pub fn build(
             return;
         };
         let quality = combo_index_to_quality(quality_combo.selected());
+        info!(quality = %quality, input = %text, "Dashboard download initiated");
         update_saved_quality(&state, quality);
         let output_dir = state.settings.lock().download_directory.clone();
         save_current_settings(&state);

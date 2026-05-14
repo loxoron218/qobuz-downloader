@@ -35,7 +35,7 @@ use {
         prelude::{BoxExt, ButtonExt, ListItemExt, ListModelExt, PreferencesGroupExt, WidgetExt},
     },
     parking_lot::Mutex,
-    tracing::error,
+    tracing::{error, warn},
     uuid::Uuid,
 };
 
@@ -314,7 +314,11 @@ fn setup_download_row(
     main_box.set_margin_start(16);
     main_box.set_margin_end(16);
 
-    let cover_image = Image::builder().halign(Start).valign(Center).build();
+    let cover_image = Image::builder()
+        .halign(Start)
+        .valign(Center)
+        .tooltip_text("Cover art")
+        .build();
     cover_image.set_pixel_size(72);
 
     let metadata_box = Box::new(Vertical, 4);
@@ -632,7 +636,12 @@ fn handle_event(
             drop(map);
             refresh_model_item(model, id, tasks);
         }
-        Failed { id, .. } => {
+        Failed { id, error } => {
+            if error.contains("cancelled") {
+                warn!(task_id = %id, error = %error, "Download cancelled by user");
+            } else {
+                error!(task_id = %id, error = %error, "Download failed");
+            }
             let mut map = tasks.lock();
             if let Some(task) = map.get_mut(id).filter(|t| t.status != Cancelled) {
                 task.status = ItemFailed;

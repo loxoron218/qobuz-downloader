@@ -161,8 +161,8 @@
 
 **Purpose**: Improvements that affect multiple user stories
 
-- [ ] T042 Add structured tracing with fields throughout all modules (e.g., error tracing in download worker, search timing, auth state transitions)
-- [ ] T043 Handle remaining edge cases across modules:
+- [X] T042 Add structured tracing with fields throughout all modules (e.g., error tracing in download worker, search timing, auth state transitions)
+- [X] T043 Handle remaining edge cases across modules:
   * Subscription quality mismatch → show error toast with alternative quality
   * Disk space errors → clean up partial files, mark remaining as failed
   * Geo-blocked/DRM content → clear error toast, skip in batch downloads
@@ -171,17 +171,17 @@
   * Token expiry mid-session → delegate to FR-008a re-auth in auth/session.rs (already covered by T029)
   * Duplicate download (same file exists) → delegate to FR-013b skip logic (already covered by T021)
   * App termination during download → delegate to T047 signal handlers (already covered)
-- [ ] T044 Ensure GNOME HIG compliance across all views: 6px spacing scale, mnemonic keyboard navigation, accessible labels via accessible_update_property, tooltip text on interactive elements, suggested-action/destructive-action CSS on buttons
-- [ ] T045a [SC-001] Validate search-to-download within 30s of launch (with stored credentials): launch app, search, select track, begin download, verify elapsed time ≤ 30s
-- [ ] T045b [SC-002] Validate search results appear within 3s of query submission: instrument query-to-render timing, verify ≤ 3s
-- [ ] T045c [SC-003] Validate all downloaded files contain complete metadata tags and embedded cover art: verify with `ffprobe` or equivalent tool that title, artist, album, genre, track number, year, ISRC, and cover art are present
-- [ ] T045d [SC-004] Validate album download produces all tracks in correct folder structure: verify "Artist - Album Title/" folder exists with all tracks named "TrackNumber - Title.ext"
-- [ ] T045e [SC-005] Validate UI remains responsive during downloads: instrument main-loop callback durations, verify no callback exceeds 50ms blocking during active downloads
-- [ ] T045f [SC-006] Validate first-time auth + first download completes within 2 minutes: fresh launch, enter credentials, search, download, verify elapsed ≤ 2min
-- [ ] T045g [SC-007] Validate download progress updates are visible within 1s of actual progress changes: instrument progress event → UI render latency, verify ≤ 1s
-- [ ] T046 Save and restore window geometry (width, height) via AppSettings (window_width/window_height fields): save on window close event, restore on window creation in src/window.rs
-- [ ] T047 Register signal handlers (SIGTERM, SIGINT) via gio::unix_signal_add or similar: cancel all active downloads, clean up partial files, then exit cleanly. On next startup, scan the download directory for orphaned `.part` files and remove them.
-- [ ] T048 Add UI responsiveness instrumentation for SC-005 validation: instrument glib main-loop callback durations using tracing spans with fields; add a test utility that measures callback durations under simulated download load and asserts no callback exceeds 50ms blocking
+- [X] T044 Ensure GNOME HIG compliance across all views: 6px spacing scale, mnemonic keyboard navigation, accessible labels via accessible_update_property, tooltip text on interactive elements, suggested-action/destructive-action CSS on buttons
+- [X] T045a [SC-001] Validate search-to-download within 30s of launch (with stored credentials): launch app, search, select track, begin download, verify elapsed time ≤ 30s
+- [X] T045b [SC-002] Validate search results appear within 3s of query submission: instrument query-to-render timing, verify ≤ 3s
+- [X] T045c [SC-003] Validate all downloaded files contain complete metadata tags and embedded cover art: verify with `ffprobe` or equivalent tool that title, artist, album, genre, track number, year, ISRC, and cover art are present
+- [X] T045d [SC-004] Validate album download produces all tracks in correct folder structure: verify "Artist - Album Title/" folder exists with all tracks named "TrackNumber - Title.ext"
+- [X] T045e [SC-005] Validate UI remains responsive during downloads: instrument main-loop callback durations, verify no callback exceeds 50ms blocking during active downloads
+- [X] T045f [SC-006] Validate first-time auth + first download completes within 2 minutes: fresh launch, enter credentials, search, download, verify elapsed ≤ 2min
+- [X] T045g [SC-007] Validate download progress updates are visible within 1s of actual progress changes: instrument progress event → UI render latency, verify ≤ 1s
+- [X] T046 Save and restore window geometry (width, height) via AppSettings (window_width/window_height fields): save on window close event, restore on window creation in src/window.rs
+- [X] T047 Register signal handlers (SIGTERM, SIGINT) via gio::unix_signal_add or similar: cancel all active downloads, clean up partial files, then exit cleanly. On next startup, scan the download directory for orphaned `.part` files and remove them.
+- [X] T048 Add UI responsiveness instrumentation for SC-005 validation: instrument glib main-loop callback durations using tracing spans with fields; add a test utility that measures callback durations under simulated download load and asserts no callback exceeds 50ms blocking
 
 ---
 

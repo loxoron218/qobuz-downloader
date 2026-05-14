@@ -326,13 +326,21 @@ fn handle_download_result(
             send_event(evt_sender, Completed { id: task_id });
         }
         Err(err) => {
+            let err_str = err.to_string();
             if is_cancelled_error(&err) {
-                info!(id = %task_id, "Download aborted due to cancellation");
-            } else {
-                error!(id = %task_id, error = %err, "Download failed");
+                info!(id = %task_id, error = %err_str, "Download aborted due to cancellation");
+                mark_download_failed(tasks, task_id);
+                return;
             }
+            error!(id = %task_id, error = %err_str, "Download failed");
             mark_download_failed(tasks, task_id);
-            send_event(evt_sender, Failed { id: task_id });
+            send_event(
+                evt_sender,
+                Failed {
+                    id: task_id,
+                    error: err_str,
+                },
+            );
         }
     }
 }
@@ -376,7 +384,13 @@ fn handle_cancel(
         t.completed_at = Some(Local::now());
     }
     drop(map);
-    send_event(evt_sender, Failed { id });
+    send_event(
+        evt_sender,
+        Failed {
+            id,
+            error: "Download cancelled by user".to_string(),
+        },
+    );
 }
 
 /// Executes a single download using the API service.

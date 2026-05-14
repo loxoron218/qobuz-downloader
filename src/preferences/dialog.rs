@@ -14,7 +14,7 @@ use {
         },
     },
     parking_lot::Mutex,
-    tracing::warn,
+    tracing::{info, warn},
 };
 
 use crate::{
@@ -197,7 +197,13 @@ fn save_preferences_from_dialog(
         settings.download_directory.clone_from(&dir);
     }
     drop(dir);
-    settings.default_quality = index_to_quality(quality_row.selected());
+    let new_quality = index_to_quality(quality_row.selected());
+    settings.default_quality = new_quality;
+    info!(
+        download_directory = %settings.download_directory.display(),
+        default_quality = %new_quality,
+        "Preferences saved",
+    );
     if let Err(err) = save_settings(&settings) {
         warn!(error = %err, "Failed to save preferences");
     }

@@ -41,6 +41,8 @@ pub enum DownloadEvent {
     Failed {
         /// Task ID.
         id: Uuid,
+        /// Error description.
+        error: String,
     },
     /// Download has started (a slot was available).
     Started {
