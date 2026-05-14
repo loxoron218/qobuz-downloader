@@ -20,8 +20,8 @@ use {
 use crate::{
     app::AppState,
     auth::{keyring::delete, session::AuthState::Unauthenticated},
-    download::progress::Quality,
     preferences::settings::save_settings,
+    types::Quality,
 };
 
 /// Maps a `Quality` value to the `ComboRow` selected index.

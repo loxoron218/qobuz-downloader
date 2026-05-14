@@ -12,7 +12,7 @@ use {
     serde_json::{from_str, to_string_pretty},
 };
 
-use crate::download::progress::Quality;
+use crate::types::Quality;
 
 /// Persistent user preferences.
 #[derive(Clone, Debug, Deserialize, Serialize)]

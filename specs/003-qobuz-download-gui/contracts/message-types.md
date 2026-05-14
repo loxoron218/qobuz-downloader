@@ -212,3 +212,63 @@ enum AuthEvent {
 **Invariants**:
 - Auth events are mutually exclusive with GUI interaction (login form is modal)
 - On `ReauthFailed`, GUI transitions to login view with error message
+
+## Channel 6: Metadata Embedder Contract
+
+**Type**: Direct function call (synchronous, called from download worker thread)
+**Interface Provider**: `qobuz_api_rust_refactor::metadata::embedder`
+**Direction**: Download Worker → Embedder (blocking call, no channel needed)
+
+### Contract
+
+```rust
+/// Embeds metadata and cover art into a downloaded audio file.
+///
+/// # Arguments
+///
+/// * `file_path` - Absolute path to the downloaded audio file on disk.
+/// * `track` - The track metadata from Qobuz API (title, artist, album,
+///   genre, track_number, year, ISRC, etc.).
+/// * `cover_art_bytes` - Raw image bytes for cover art embedding (JPEG/PNG).
+///   Pass `None` if cover art download failed.
+/// * `quality` - The quality level of the downloaded file (determines
+///   format-specific tag fields).
+///
+/// # Returns
+///
+/// - `Ok(())` — Metadata written successfully.
+/// - `Err(EmbedderError)` — Embedding failed (e.g., unsupported format,
+///   corrupt file, I/O error).
+///
+/// # Errors
+///
+/// Returns `EmbedderError` for the following conditions:
+/// - `FileNotFound` — `file_path` does not exist
+/// - `UnsupportedFormat` — The audio codec/container cannot be tagged
+/// - `IoError` — Underlying filesystem error during write
+/// - `CorruptFile` — File integrity check failed during embedding
+fn embed_metadata(
+    file_path: &Path,
+    track: &Track,
+    cover_art_bytes: Option<&[u8]>,
+    quality: &Quality,
+) -> Result<(), EmbedderError>;
+```
+
+**Pre-conditions**:
+- `file_path` MUST point to a valid, fully-downloaded audio file
+- `track` MUST contain at minimum: title, artist, album, track_number, year
+
+**Post-conditions**:
+- On success: The file at `file_path` contains ID3v2/Vorbis comment tags matching `track` fields, and cover art if `cover_art_bytes` is `Some`
+- On error: `file_path` is NOT modified (embedder rolls back on failure)
+
+**Error type** (`EmbedderError`):
+```rust
+enum EmbedderError {
+    FileNotFound(PathBuf),
+    UnsupportedFormat(String),
+    IoError(std::io::Error),
+    CorruptFile(String),
+}
+```

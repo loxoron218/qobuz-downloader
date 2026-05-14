@@ -4,7 +4,7 @@ use std::path::{Path, PathBuf};
 
 use qobuz_api_rust_refactor::sanitize::sanitize_filename;
 
-use crate::download::progress::Quality;
+use crate::types::Quality;
 
 /// Computes the album output directory using "Artist/Album Title" folder naming.
 ///

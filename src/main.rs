@@ -9,6 +9,7 @@ mod download;
 mod errors;
 mod preferences;
 mod search;
+mod types;
 mod ui;
 mod window;
 

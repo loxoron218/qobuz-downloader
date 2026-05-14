@@ -29,9 +29,9 @@ use crate::{
     download::progress::{
         DownloadCommand::{self, Enqueue},
         DownloadTask,
-        Quality::{self, Flac16_44, Flac24_96, Flac24_192, Mp3_320},
     },
     preferences::settings::AppSettings,
+    types::Quality::{self, Flac16_44, Flac24_96, Flac24_192, Mp3_320},
 };
 
 /// Widgets for the header bar + scrolled content layout.

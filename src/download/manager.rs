@@ -35,11 +35,12 @@ use crate::{
             DownloadStatus::{
                 Active, Cancelled, Completed as StatusCompleted, Failed as ItemFailed,
             },
-            DownloadTask, Quality,
+            DownloadTask,
         },
         worker::album_output_dir,
     },
     errors::AppError::{self, Api, Download},
+    types::Quality,
 };
 
 /// Number of persistent download worker threads.

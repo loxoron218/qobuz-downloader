@@ -62,6 +62,7 @@ src/
 ├── main.rs                  # Application entry point, GTK/Adwaita init
 ├── app.rs                   # AdwApplication setup, window lifecycle
 ├── window.rs                # Main ApplicationWindow with NavigationView
+├── types.rs                 # Shared types (Quality enum, etc.)
 ├── auth/
 │   ├── mod.rs               # Auth module
 │   ├── login_view.rs        # Login form UI

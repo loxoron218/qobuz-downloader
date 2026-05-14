@@ -34,11 +34,11 @@ use crate::{
             DownloadEvent,
             DownloadItem::{self, Album, Playlist, Track},
             DownloadTask,
-            Quality::{self, Flac16_44, Flac24_96, Flac24_192, Mp3_320},
         },
         view::build_queue_section,
     },
     preferences::settings::save_settings,
+    types::Quality::{self, Flac16_44, Flac24_96, Flac24_192, Mp3_320},
     ui::{build_content_clamp, wrap_clamp_in_scrolled},
 };
 
