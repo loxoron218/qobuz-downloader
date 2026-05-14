@@ -5,11 +5,16 @@ use std::sync::Arc;
 use {
     async_channel::Sender,
     libadwaita::{
-        EntryRow, PasswordEntryRow,
+        EntryRow, PasswordEntryRow, PreferencesGroup,
         gio::spawn_blocking,
         glib::clone,
-        gtk::{Align::Center, Box, Button, Label, Orientation::Vertical, ToggleButton},
-        prelude::{BoxExt, ButtonExt, EditableExt, ToggleButtonExt, WidgetExt},
+        gtk::{
+            Align::{Center, Start},
+            Box, Button, CheckButton, Label,
+            Orientation::Vertical,
+            Stack,
+        },
+        prelude::{BoxExt, ButtonExt, CheckButtonExt, EditableExt, PreferencesGroupExt, WidgetExt},
     },
     parking_lot::Mutex,
     qobuz_api_rust_refactor::api::service::QobuzApiService,
@@ -50,8 +55,8 @@ pub struct LoginWidgets {
     pub user_id_row: EntryRow,
     /// Auth token entry row.
     pub auth_token_row: PasswordEntryRow,
-    /// Email/password login toggle button.
-    pub email_toggle: ToggleButton,
+    /// Email/password login radio button.
+    pub email_radio: CheckButton,
 }
 
 /// Builds the login view UI and returns the root widget with widget references.
@@ -68,52 +73,72 @@ pub fn build(state: &AppState, sender: Sender<AuthEvent>) -> LoginWidgets {
     content.set_margin_end(36);
     content.set_valign(Center);
 
-    let title = Label::new(Some("Qobuz Downloader"));
-    title.add_css_class("title-2");
+    let title = Label::new(Some("Qobuz"));
+    title.add_css_class("title-1");
     content.append(&title);
 
-    let subtitle = Label::new(Some("Sign in with your Qobuz account"));
-    subtitle.add_css_class("dim-label");
+    let subtitle = Label::new(Some("Enter your credentials to get started"));
+    subtitle.add_css_class("subtitle");
     content.append(&subtitle);
 
-    let toggle_box = Box::new(Vertical, 6);
-    toggle_box.set_halign(Center);
+    let spacer = Box::new(Vertical, 0);
+    spacer.set_vexpand(true);
+    content.append(&spacer);
 
-    let email_toggle = ToggleButton::with_label("Email / Password");
-    email_toggle.set_active(true);
-    let token_toggle = ToggleButton::with_label("User ID / Token");
-    email_toggle.set_group(Some(&token_toggle));
+    let selection_label = Label::new(Some("Authentication Method"));
+    selection_label.set_halign(Start);
+    selection_label.add_css_class("heading");
+    content.append(&selection_label);
 
-    toggle_box.append(&email_toggle);
-    toggle_box.append(&token_toggle);
-    content.append(&toggle_box);
+    let email_radio = CheckButton::with_label("Email/Username and Password");
+    email_radio.set_active(true);
+    let token_radio = CheckButton::with_label("User ID and Auth Token");
+    email_radio.set_group(Some(&token_radio));
 
-    let email_row = EntryRow::builder().title("Email").build();
-    email_row.set_hexpand(true);
-    content.append(&email_row);
+    let radio_box = Box::new(Vertical, 6);
+    radio_box.append(&email_radio);
+    radio_box.append(&token_radio);
+    content.append(&radio_box);
+
+    let email_preferences_group = PreferencesGroup::builder()
+        .title("Email/Username and Password")
+        .build();
+
+    let email_row = EntryRow::builder()
+        .title("Email or Username")
+        .show_apply_button(false)
+        .build();
+    email_preferences_group.add(&email_row);
 
     let password_row = PasswordEntryRow::builder().title("Password").build();
-    password_row.set_hexpand(true);
-    content.append(&password_row);
+    email_preferences_group.add(&password_row);
 
-    let user_id_row = EntryRow::builder().title("User ID").build();
-    user_id_row.set_hexpand(true);
-    user_id_row.set_visible(false);
-    content.append(&user_id_row);
+    let email_section = Box::new(Vertical, 16);
+    email_section.append(&email_preferences_group);
+
+    let token_preferences_group = PreferencesGroup::builder()
+        .title("User ID and Auth Token")
+        .build();
+
+    let user_id_row = EntryRow::builder()
+        .title("User ID")
+        .show_apply_button(false)
+        .build();
+    token_preferences_group.add(&user_id_row);
 
     let auth_token_row = PasswordEntryRow::builder().title("Auth Token").build();
-    auth_token_row.set_hexpand(true);
-    auth_token_row.set_visible(false);
-    content.append(&auth_token_row);
+    token_preferences_group.add(&auth_token_row);
 
-    connect_toggle_handlers(
-        &email_toggle,
-        &token_toggle,
-        &email_row,
-        &password_row,
-        &user_id_row,
-        &auth_token_row,
-    );
+    let token_section = Box::new(Vertical, 16);
+    token_section.append(&token_preferences_group);
+
+    let credential_stack = Stack::new();
+    credential_stack.add_named(&email_section, Some("email"));
+    credential_stack.add_named(&token_section, Some("token"));
+    credential_stack.set_visible_child_name("email");
+    content.append(&credential_stack);
+
+    connect_toggle_handlers(&email_radio, &token_radio, &credential_stack);
 
     let error_label = Label::new(None);
     error_label.add_css_class("error");
@@ -134,7 +159,7 @@ pub fn build(state: &AppState, sender: Sender<AuthEvent>) -> LoginWidgets {
         password_row,
         user_id_row,
         auth_token_row,
-        email_toggle,
+        email_radio,
     };
 
     connect_submit_handler(state, sender, &widgets);
@@ -144,55 +169,34 @@ pub fn build(state: &AppState, sender: Sender<AuthEvent>) -> LoginWidgets {
 
 /// Returns which login method is currently selected.
 pub fn current_method(widgets: &LoginWidgets) -> LoginMethod {
-    if widgets.email_toggle.is_active() {
+    if widgets.email_radio.is_active() {
         LoginMethod::EmailPassword
     } else {
         LoginMethod::Token
     }
 }
 
-/// Connects toggle button handlers to show/hide the appropriate credential fields.
+/// Connects radio button handlers to switch the credential stack.
 fn connect_toggle_handlers(
-    email_toggle: &ToggleButton,
-    token_toggle: &ToggleButton,
-    email_row: &EntryRow,
-    password_row: &PasswordEntryRow,
-    user_id_row: &EntryRow,
-    auth_token_row: &PasswordEntryRow,
+    email_radio: &CheckButton,
+    token_radio: &CheckButton,
+    credential_stack: &Stack,
 ) {
-    let email_row_c = email_row.clone();
-    let password_row_c = password_row.clone();
-    let user_id_row_c = user_id_row.clone();
-    let auth_token_row_c = auth_token_row.clone();
-    email_toggle.connect_toggled(clone!(
-        #[strong]
-        token_toggle,
-        move |btn| {
-            let is_email = btn.is_active();
-            token_toggle.set_active(!is_email);
-            email_row_c.set_visible(is_email);
-            password_row_c.set_visible(is_email);
-            user_id_row_c.set_visible(!is_email);
-            auth_token_row_c.set_visible(!is_email);
+    let credential_stack_c1 = credential_stack.clone();
+    let email_radio_c1 = email_radio.clone();
+    email_radio.connect_toggled(move |_| {
+        if email_radio_c1.is_active() {
+            credential_stack_c1.set_visible_child_name("email");
         }
-    ));
+    });
 
-    let email_row_c = email_row.clone();
-    let password_row_c = password_row.clone();
-    let user_id_row_c = user_id_row.clone();
-    let auth_token_row_c = auth_token_row.clone();
-    token_toggle.connect_toggled(clone!(
-        #[strong]
-        email_toggle,
-        move |btn| {
-            let is_token = btn.is_active();
-            email_toggle.set_active(!is_token);
-            email_row_c.set_visible(!is_token);
-            password_row_c.set_visible(!is_token);
-            user_id_row_c.set_visible(is_token);
-            auth_token_row_c.set_visible(is_token);
+    let credential_stack_c2 = credential_stack.clone();
+    let token_radio_c2 = token_radio.clone();
+    token_radio.connect_toggled(move |_| {
+        if token_radio_c2.is_active() {
+            credential_stack_c2.set_visible_child_name("token");
         }
-    ));
+    });
 }
 
 /// Connects the submit button handler for both login modes.
@@ -211,7 +215,7 @@ fn connect_submit_handler(state: &AppState, sender: Sender<AuthEvent>, widgets: 
         auth_token_row,
         error_label,
         submit_button,
-        email_toggle,
+        email_radio,
         ..
     } = widgets.clone();
 
@@ -229,9 +233,9 @@ fn connect_submit_handler(state: &AppState, sender: Sender<AuthEvent>, widgets: 
         #[strong]
         submit_button,
         #[strong]
-        email_toggle,
+        email_radio,
         move |_| {
-            let is_email_mode = email_toggle.is_active();
+            let is_email_mode = email_radio.is_active();
 
             if is_email_mode {
                 handle_email_login(
