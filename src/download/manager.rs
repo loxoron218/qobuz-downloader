@@ -467,7 +467,6 @@ where
                         format_id,
                         output_dir,
                         Some(&MetadataConfig::default()),
-                        None,
                         Some(cancel),
                     )
                     .map_err(AppError::from)?;
