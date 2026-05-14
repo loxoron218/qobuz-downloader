@@ -1,10 +1,18 @@
 //! Download progress tracking and quality types.
 
-use std::{collections::HashMap, path::PathBuf, time::SystemTime};
+use std::{
+    collections::HashMap,
+    path::PathBuf,
+    sync::atomic::{AtomicU64, Ordering::Relaxed},
+    time::SystemTime,
+};
 
-use {libadwaita::gtk::gdk::Texture, num_traits::AsPrimitive, parking_lot::Mutex, uuid::Uuid};
+use {libadwaita::gtk::gdk::Texture, num_traits::AsPrimitive, parking_lot::Mutex};
 
 use crate::types::Quality;
+
+/// Global unique ID counter for download tasks.
+static NEXT_ID: AtomicU64 = AtomicU64::new(1);
 
 /// Commands sent to the download worker.
 #[derive(Clone, Debug)]
@@ -12,7 +20,7 @@ pub enum DownloadCommand {
     /// Cancel a specific download.
     Cancel {
         /// The task ID to cancel.
-        id: Uuid,
+        id: u64,
     },
     /// Add a download task to the queue.
     Enqueue {
@@ -29,24 +37,24 @@ pub enum DownloadEvent {
     /// Download completed successfully.
     Completed {
         /// Task ID.
-        id: Uuid,
+        id: u64,
     },
     /// Download failed permanently.
     Failed {
         /// Task ID.
-        id: Uuid,
+        id: u64,
         /// Error description.
         error: String,
     },
     /// Download has started (a slot was available).
     Started {
         /// Task ID.
-        id: Uuid,
+        id: u64,
     },
     /// Download progress update (for batch downloads).
     Progress {
         /// Task ID.
-        id: Uuid,
+        id: u64,
         /// Number of items completed so far.
         items_completed: u32,
         /// Total number of items (if known).
@@ -195,7 +203,7 @@ pub struct DownloadTask {
     /// Completion time.
     pub completed_at: Option<SystemTime>,
     /// Unique task identifier.
-    pub id: Uuid,
+    pub id: u64,
     /// What to download.
     pub item: DownloadItem,
     /// Destination directory.
@@ -212,7 +220,7 @@ impl DownloadTask {
     /// Creates a new download task with the given parameters.
     pub fn new(item: DownloadItem, quality: Quality, output_dir: PathBuf) -> Self {
         Self {
-            id: Uuid::new_v4(),
+            id: next_id(),
             item,
             quality,
             output_dir,
@@ -223,6 +231,11 @@ impl DownloadTask {
     }
 }
 
+/// Returns the next unique download task ID.
+pub fn next_id() -> u64 {
+    NEXT_ID.fetch_add(1, Relaxed)
+}
+
 /// Marks all queued and active tasks as cancelled.
 ///
 /// Does NOT clear the map — workers need to check task status
@@ -231,7 +244,7 @@ impl DownloadTask {
 /// # Arguments
 ///
 /// * `tasks` - The task map to update
-pub fn cancel_all_tasks(tasks: &Mutex<HashMap<Uuid, DownloadTask>>) {
+pub fn cancel_all_tasks(tasks: &Mutex<HashMap<u64, DownloadTask>>) {
     let mut map = tasks.lock();
     for task in map
         .values_mut()

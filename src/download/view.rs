@@ -36,7 +36,6 @@ use {
     },
     parking_lot::Mutex,
     tracing::{error, warn},
-    uuid::Uuid,
 };
 
 use crate::{
@@ -64,7 +63,7 @@ async fn run_event_loop(
     evt_receiver: Receiver<DownloadEvent>,
     model: ListStore,
     stack: Stack,
-    tasks: Arc<Mutex<HashMap<Uuid, DownloadTask>>>,
+    tasks: Arc<Mutex<HashMap<u64, DownloadTask>>>,
 ) {
     while let Ok(event) = evt_receiver.recv().await {
         handle_event(&event, &model, &stack, &tasks);
@@ -83,8 +82,8 @@ async fn run_event_loop(
 pub fn build_queue_section(
     evt_receiver: Receiver<DownloadEvent>,
     cmd_sender: Sender<DownloadCommand>,
-    tasks: &Arc<Mutex<HashMap<Uuid, DownloadTask>>>,
-    cancel_signals: &Arc<Mutex<HashMap<Uuid, Arc<AtomicBool>>>>,
+    tasks: &Arc<Mutex<HashMap<u64, DownloadTask>>>,
+    cancel_signals: &Arc<Mutex<HashMap<u64, Arc<AtomicBool>>>>,
 ) -> QueueSection {
     let download_queue_group = PreferencesGroup::builder().build();
 
@@ -186,7 +185,7 @@ pub fn build_queue_section(
 }
 
 /// Sets cancel flags for all given task IDs.
-fn set_cancel_signals(ids: &[Uuid], cancel_signals: &Mutex<HashMap<Uuid, Arc<AtomicBool>>>) {
+fn set_cancel_signals(ids: &[u64], cancel_signals: &Mutex<HashMap<u64, Arc<AtomicBool>>>) {
     let mut signals = cancel_signals.lock();
     for &id in ids {
         signals
@@ -199,14 +198,14 @@ fn set_cancel_signals(ids: &[Uuid], cancel_signals: &Mutex<HashMap<Uuid, Arc<Ato
 /// Sets up the "Cancel All" button signal handler.
 fn setup_cancel_all(
     button: &Button,
-    tasks: Arc<Mutex<HashMap<Uuid, DownloadTask>>>,
+    tasks: Arc<Mutex<HashMap<u64, DownloadTask>>>,
     cmd_sender: Rc<Sender<DownloadCommand>>,
-    cancel_signals: Arc<Mutex<HashMap<Uuid, Arc<AtomicBool>>>>,
+    cancel_signals: Arc<Mutex<HashMap<u64, Arc<AtomicBool>>>>,
     model: ListStore,
     stack: Stack,
 ) {
     button.connect_clicked(move |_| {
-        let ids: Vec<Uuid> = {
+        let ids: Vec<u64> = {
             let map = tasks.lock();
             map.iter()
                 .filter(|(_, t)| matches!(t.status, Queued | Active))
@@ -238,9 +237,9 @@ fn send_cancel_command(cmd_sender: &Rc<Sender<DownloadCommand>>, cmd: DownloadCo
 fn wire_cancel_button(
     button: &Button,
     cmd_sender: &Rc<Sender<DownloadCommand>>,
-    tasks: &Arc<Mutex<HashMap<Uuid, DownloadTask>>>,
+    tasks: &Arc<Mutex<HashMap<u64, DownloadTask>>>,
     model: &ListStore,
-    task_map: &Arc<Mutex<HashMap<usize, Uuid>>>,
+    task_map: &Arc<Mutex<HashMap<usize, u64>>>,
 ) {
     let cmd_sender = Rc::clone(cmd_sender);
     let tasks = Arc::clone(tasks);
@@ -254,12 +253,12 @@ fn wire_cancel_button(
         };
         send_cancel_command(&cmd_sender, Cancel { id });
         mark_task_cancelled(&tasks, id);
-        refresh_model_item(&model, &id, &tasks);
+        refresh_model_item(&model, id, &tasks);
     });
 }
 
 /// Marks a task as cancelled in the tasks map.
-fn mark_task_cancelled(tasks: &Arc<Mutex<HashMap<Uuid, DownloadTask>>>, id: Uuid) {
+fn mark_task_cancelled(tasks: &Arc<Mutex<HashMap<u64, DownloadTask>>>, id: u64) {
     let mut map = tasks.lock();
     if let Some(t) = map.get_mut(&id) {
         t.status = Cancelled;
@@ -270,12 +269,12 @@ fn mark_task_cancelled(tasks: &Arc<Mutex<HashMap<Uuid, DownloadTask>>>, id: Uuid
 /// Sets up the `SignalListItemFactory` for download queue items.
 fn setup_download_queue_factory(
     cmd_sender: &Rc<Sender<DownloadCommand>>,
-    tasks: &Arc<Mutex<HashMap<Uuid, DownloadTask>>>,
+    tasks: &Arc<Mutex<HashMap<u64, DownloadTask>>>,
     model: &ListStore,
 ) -> SignalListItemFactory {
     let factory = SignalListItemFactory::new();
     let tasks = Arc::clone(tasks);
-    let task_map: Arc<Mutex<HashMap<usize, Uuid>>> = Arc::new(Mutex::new(HashMap::new()));
+    let task_map: Arc<Mutex<HashMap<usize, u64>>> = Arc::new(Mutex::new(HashMap::new()));
     factory.connect_setup({
         let cmd_sender = Rc::clone(cmd_sender);
         let tasks = Arc::clone(&tasks);
@@ -300,9 +299,9 @@ fn setup_download_queue_factory(
 fn setup_download_row(
     list_item_obj: &Object,
     cmd_sender: &Rc<Sender<DownloadCommand>>,
-    tasks: &Arc<Mutex<HashMap<Uuid, DownloadTask>>>,
+    tasks: &Arc<Mutex<HashMap<u64, DownloadTask>>>,
     model: &ListStore,
-    task_map: &Arc<Mutex<HashMap<usize, Uuid>>>,
+    task_map: &Arc<Mutex<HashMap<usize, u64>>>,
 ) {
     let Some(list_item) = list_item_obj.downcast_ref::<ListItem>() else {
         return;
@@ -377,7 +376,7 @@ fn setup_download_row(
 }
 
 /// Binds download task data to row widgets within a `ListItem`.
-fn bind_download_row(list_item_obj: &Object, task_map: &Arc<Mutex<HashMap<usize, Uuid>>>) {
+fn bind_download_row(list_item_obj: &Object, task_map: &Arc<Mutex<HashMap<usize, u64>>>) {
     let Some(list_item) = list_item_obj.downcast_ref::<ListItem>() else {
         return;
     };
@@ -596,7 +595,7 @@ fn handle_event(
     event: &DownloadEvent,
     model: &ListStore,
     stack: &Stack,
-    tasks: &Arc<Mutex<HashMap<Uuid, DownloadTask>>>,
+    tasks: &Arc<Mutex<HashMap<u64, DownloadTask>>>,
 ) {
     match event {
         Started { id } => {
@@ -625,7 +624,7 @@ fn handle_event(
                 task.progress.total_items = *total_items;
             }
             drop(map);
-            refresh_model_item(model, id, tasks);
+            refresh_model_item(model, *id, tasks);
         }
         Completed { id, .. } => {
             let mut map = tasks.lock();
@@ -634,13 +633,13 @@ fn handle_event(
                 task.completed_at = Some(SystemTime::now());
             }
             drop(map);
-            refresh_model_item(model, id, tasks);
+            refresh_model_item(model, *id, tasks);
         }
         Failed { id, error } => {
             if error.contains("cancelled") {
-                warn!(task_id = %id, error = %error, "Download cancelled by user");
+                warn!(task_id = id, error = %error, "Download cancelled by user");
             } else {
-                error!(task_id = %id, error = %error, "Download failed");
+                error!(task_id = id, error = %error, "Download failed");
             }
             let mut map = tasks.lock();
             if let Some(task) = map.get_mut(id).filter(|t| t.status != Cancelled) {
@@ -650,17 +649,13 @@ fn handle_event(
                 task.completed_at = Some(SystemTime::now());
             }
             drop(map);
-            refresh_model_item(model, id, tasks);
+            refresh_model_item(model, *id, tasks);
         }
     }
 }
 
 /// Refreshes a specific item in the model by finding its position and splicing.
-fn refresh_model_item(
-    model: &ListStore,
-    id: &Uuid,
-    tasks: &Arc<Mutex<HashMap<Uuid, DownloadTask>>>,
-) {
+fn refresh_model_item(model: &ListStore, id: u64, tasks: &Arc<Mutex<HashMap<u64, DownloadTask>>>) {
     let n = model.n_items();
     for i in 0..n {
         let Some(obj) = model.item(i) else {
@@ -673,11 +668,11 @@ fn refresh_model_item(
             let data = boxed.borrow::<DownloadRowData>();
             data.task.id
         };
-        if model_id != *id {
+        if model_id != id {
             continue;
         }
         let map = tasks.lock();
-        let task_clone = map.get(id).cloned();
+        let task_clone = map.get(&id).cloned();
         drop(map);
         let Some(task) = task_clone else { break };
         let data = boxed.borrow::<DownloadRowData>();

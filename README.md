@@ -218,7 +218,6 @@ qobuz-downloader/
 - **parking_lot**: High-performance mutex
 - **oo7**: GNOME Keyring integration
 - **async-channel**: Async channel communication
-- **uuid**: Unique task identification
 
 ## Development
 

@@ -23,7 +23,6 @@ use {
     qobuz_api::api::service::QobuzApiService,
     regex::Regex,
     tracing::{error, info, warn},
-    uuid::Uuid,
 };
 
 use crate::{
@@ -420,8 +419,8 @@ pub fn build(
     state: &AppState,
     cmd_sender: Sender<DownloadCommand>,
     evt_receiver: Receiver<DownloadEvent>,
-    tasks: &Arc<Mutex<HashMap<Uuid, DownloadTask>>>,
-    cancel_signals: &Arc<Mutex<HashMap<Uuid, Arc<AtomicBool>>>>,
+    tasks: &Arc<Mutex<HashMap<u64, DownloadTask>>>,
+    cancel_signals: &Arc<Mutex<HashMap<u64, Arc<AtomicBool>>>>,
 ) -> DashboardWidgets {
     let toolbar = ToolbarView::new();
     let header = HeaderBar::new();

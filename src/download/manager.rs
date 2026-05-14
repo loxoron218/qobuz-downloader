@@ -23,7 +23,6 @@ use {
         metadata::config::MetadataConfig, sanitize::sanitize_filename,
     },
     tracing::{error, info},
-    uuid::Uuid,
 };
 
 use crate::{
@@ -59,9 +58,9 @@ pub struct DownloadManager {
     /// Event channel receiver.
     evt_receiver: Receiver<DownloadEvent>,
     /// Tracked download tasks.
-    tasks: Arc<Mutex<HashMap<Uuid, DownloadTask>>>,
+    tasks: Arc<Mutex<HashMap<u64, DownloadTask>>>,
     /// Per-task cancellation signals, exposed for UI direct flag-setting.
-    cancel_signals: Arc<Mutex<HashMap<Uuid, Arc<AtomicBool>>>>,
+    cancel_signals: Arc<Mutex<HashMap<u64, Arc<AtomicBool>>>>,
 }
 
 impl DownloadManager {
@@ -92,12 +91,12 @@ impl DownloadManager {
     }
 
     /// Returns a shared handle to the tasks map for view access.
-    pub fn tasks_handle(&self) -> Arc<Mutex<HashMap<Uuid, DownloadTask>>> {
+    pub fn tasks_handle(&self) -> Arc<Mutex<HashMap<u64, DownloadTask>>> {
         Arc::clone(&self.tasks)
     }
 
     /// Returns a shared handle to the cancel signals map for direct cancellation.
-    pub fn cancel_signals_handle(&self) -> Arc<Mutex<HashMap<Uuid, Arc<AtomicBool>>>> {
+    pub fn cancel_signals_handle(&self) -> Arc<Mutex<HashMap<u64, Arc<AtomicBool>>>> {
         Arc::clone(&self.cancel_signals)
     }
 
@@ -134,9 +133,9 @@ struct WorkerCtx<'a> {
     /// Shared API client.
     api_service: &'a Arc<Mutex<QobuzApiService>>,
     /// Tracked download tasks.
-    tasks: &'a Arc<Mutex<HashMap<Uuid, DownloadTask>>>,
+    tasks: &'a Arc<Mutex<HashMap<u64, DownloadTask>>>,
     /// Per-task cancellation signals.
-    cancel_signals: &'a Arc<Mutex<HashMap<Uuid, Arc<AtomicBool>>>>,
+    cancel_signals: &'a Arc<Mutex<HashMap<u64, Arc<AtomicBool>>>>,
     /// Shutdown flag.
     shutdown: &'a Arc<AtomicBool>,
 }
@@ -150,8 +149,8 @@ fn run_download_worker(
     cmd_receiver: &Receiver<DownloadCommand>,
     evt_sender: &Sender<DownloadEvent>,
     api_service: &Arc<Mutex<QobuzApiService>>,
-    tasks: &Arc<Mutex<HashMap<Uuid, DownloadTask>>>,
-    cancel_signals: &Arc<Mutex<HashMap<Uuid, Arc<AtomicBool>>>>,
+    tasks: &Arc<Mutex<HashMap<u64, DownloadTask>>>,
+    cancel_signals: &Arc<Mutex<HashMap<u64, Arc<AtomicBool>>>>,
 ) {
     let shutdown = Arc::new(AtomicBool::new(false));
 
@@ -234,8 +233,8 @@ fn worker_loop(ctx: &WorkerCtx<'_>) {
 fn handle_enqueued_download(
     evt_sender: &Sender<DownloadEvent>,
     api_service: &Arc<Mutex<QobuzApiService>>,
-    tasks: &Arc<Mutex<HashMap<Uuid, DownloadTask>>>,
-    cancel_signals: &Arc<Mutex<HashMap<Uuid, Arc<AtomicBool>>>>,
+    tasks: &Arc<Mutex<HashMap<u64, DownloadTask>>>,
+    cancel_signals: &Arc<Mutex<HashMap<u64, Arc<AtomicBool>>>>,
     task: &DownloadTask,
 ) {
     let task_id = task.id;
@@ -310,13 +309,13 @@ fn send_event(evt_sender: &Sender<DownloadEvent>, event: DownloadEvent) {
 /// Updates task state and sends the appropriate event for a completed/failed download.
 fn handle_download_result(
     evt_sender: &Sender<DownloadEvent>,
-    tasks: &Arc<Mutex<HashMap<Uuid, DownloadTask>>>,
-    task_id: Uuid,
+    tasks: &Arc<Mutex<HashMap<u64, DownloadTask>>>,
+    task_id: u64,
     result: Result<PathBuf, AppError>,
 ) {
     match result {
         Ok(path) => {
-            info!(id = %task_id, path = %path.display(), "Download completed");
+            info!(id = task_id, path = %path.display(), "Download completed");
             let mut map = tasks.lock();
             if let Some(t) = map.get_mut(&task_id) {
                 t.status = StatusCompleted;
@@ -328,11 +327,11 @@ fn handle_download_result(
         Err(err) => {
             let err_str = err.to_string();
             if is_cancelled_error(&err) {
-                info!(id = %task_id, error = %err_str, "Download aborted due to cancellation");
+                info!(id = task_id, error = %err_str, "Download aborted due to cancellation");
                 mark_download_failed(tasks, task_id);
                 return;
             }
-            error!(id = %task_id, error = %err_str, "Download failed");
+            error!(id = task_id, error = %err_str, "Download failed");
             mark_download_failed(tasks, task_id);
             send_event(
                 evt_sender,
@@ -346,7 +345,7 @@ fn handle_download_result(
 }
 
 /// Marks a download task as failed in the tasks map, preserving Cancelled status.
-fn mark_download_failed(tasks: &Arc<Mutex<HashMap<Uuid, DownloadTask>>>, task_id: Uuid) {
+fn mark_download_failed(tasks: &Arc<Mutex<HashMap<u64, DownloadTask>>>, task_id: u64) {
     let mut map = tasks.lock();
     if let Some(t) = map.get_mut(&task_id) {
         if t.status != Cancelled {
@@ -368,11 +367,11 @@ fn is_cancelled_error(err: &AppError) -> bool {
 /// Handles a cancel command by setting the cancellation signal and marking the task as cancelled.
 fn handle_cancel(
     evt_sender: &Sender<DownloadEvent>,
-    tasks: &Arc<Mutex<HashMap<Uuid, DownloadTask>>>,
-    cancel_signals: &Arc<Mutex<HashMap<Uuid, Arc<AtomicBool>>>>,
-    id: Uuid,
+    tasks: &Arc<Mutex<HashMap<u64, DownloadTask>>>,
+    cancel_signals: &Arc<Mutex<HashMap<u64, Arc<AtomicBool>>>>,
+    id: u64,
 ) {
-    info!(id = %id, "Download cancelled");
+    info!(id = id, "Download cancelled");
 
     if let Some(flag) = cancel_signals.lock().get(&id) {
         flag.store(true, Relaxed);
