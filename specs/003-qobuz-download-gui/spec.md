@@ -3,7 +3,7 @@
 **Feature Branch**: `003-qobuz-download-gui`
 **Created**: 2026-04-26
 **Status**: Draft
-**Input**: User description: "Build an application that allows users to download songs/albums from Qobuz via the API via GUI while using `/home/arch/Downloads/github/qobuz-api-rust-refactor`."
+**Input**: User description: "Build an application that allows users to download songs/albums from Qobuz via the API via GUI while using `/home/arch/Downloads/github/qobuz-api`."
 
 ## User Scenarios & Testing *(mandatory)*
 
@@ -125,7 +125,7 @@ A user wants to see what is currently downloading, cancel a download, and view r
 - **FR-002**: The application MUST display search results with relevant metadata including title, artist name, album name, duration, quality indicators (Hi-Res badge for FLAC 24-bit), and cover art thumbnails
 - **FR-003**: The application MUST allow users to download individual tracks in a user-selected quality level (MP3 320kbps, FLAC 16/44.1, FLAC 24/96, FLAC 24/192). For batch downloads (albums, playlists), all tracks use the same selected quality level.
 - **FR-004**: The application MUST allow users to download full albums with all tracks, organized into folders named "Artist - Album Title" with tracks named "TrackNumber - Title.ext" (see US2 Acceptance Scenario #3)
-- **FR-005**: The application MUST embed complete metadata tags (title, artist, album, genre, track number, year, ISRC, cover art) into downloaded files (delegated to `qobuz-api-rust-refactor`'s metadata embedder module)
+- **FR-005**: The application MUST embed complete metadata tags (title, artist, album, genre, track number, year, ISRC, cover art) into downloaded files (delegated to `qobuz-api`'s metadata embedder module)
 - **FR-006**: The application MUST provide download progress indication with updates within 1 second (SC-007), per-file and overall for batch downloads
 - **FR-007**: The application MUST authenticate users against the Qobuz API using email and password credentials
 - **FR-008**: The application MUST securely store authentication credentials for automatic re-login between sessions using GNOME Keyring via oo7 (Secret Service API)
@@ -141,7 +141,7 @@ A user wants to see what is currently downloading, cancel a download, and view r
 - **FR-013b**: The application MUST skip downloads for files that already exist in the download directory and display a toast notification informing the user
 - **FR-014**: The application MUST allow users to download playlists
 - **FR-015**: The application MUST display download history showing completed and failed downloads (in-memory only, cleared on application restart, capped at 100 entries with FIFO eviction)
-- **FR-016**: The application MUST use the existing `qobuz-api-rust-refactor` library for all Qobuz API interactions (search, browse, download, authentication)
+- **FR-016**: The application MUST use the existing `qobuz-api` library for all Qobuz API interactions (search, browse, download, authentication)
 - **FR-017**: The application MUST provide a graphical user interface following GNOME Human Interface Guidelines
 - **FR-018**: The application MUST save and restore window geometry (width, height) between sessions, restoring the previous window dimensions on next launch
 
@@ -183,7 +183,7 @@ A user wants to see what is currently downloading, cancel a download, and view r
 - Users have an active Qobuz subscription that permits streaming/downloading at their requested quality levels
 - Users have stable internet connectivity sufficient for downloading large audio files
 - The application runs on a Linux desktop environment with GNOME/Libadwaita available
-- The `qobuz-api-rust-refactor` library is available as a local dependency and provides all necessary API functionality (search, browse, download, authentication, metadata embedding)
+- The `qobuz-api` library is available as a local dependency and provides all necessary API functionality (search, browse, download, authentication, metadata embedding)
 - Users are comfortable entering their Qobuz credentials in a desktop application
 - Downloads are for personal use in compliance with Qobuz terms of service
 - The application is a single-user desktop application with no multi-user or server-side requirements

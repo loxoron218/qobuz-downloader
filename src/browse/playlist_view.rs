@@ -10,7 +10,7 @@ use {
         prelude::{BoxExt, WidgetExt},
     },
     parking_lot::Mutex,
-    qobuz_api_rust_refactor::models::playlist::Playlist,
+    qobuz_api::models::playlist::Playlist,
 };
 
 use crate::{

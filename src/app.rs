@@ -2,7 +2,7 @@
 
 use std::sync::Arc;
 
-use {parking_lot::Mutex, qobuz_api_rust_refactor::api::service::QobuzApiService, tracing::info};
+use {parking_lot::Mutex, qobuz_api::api::service::QobuzApiService, tracing::info};
 
 use crate::{
     auth::session::AuthState,

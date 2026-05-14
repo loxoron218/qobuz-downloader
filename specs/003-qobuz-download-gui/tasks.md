@@ -16,7 +16,7 @@
 ## Path Conventions
 
 - Single project: `src/` at repository root
-- Local dependency: `qobuz-api-rust-refactor` at `/home/arch/Downloads/github/qobuz-api-rust-refactor`
+- Local dependency: `qobuz-api` at `/home/arch/Downloads/github/qobuz-api`
 
 ---
 
@@ -24,7 +24,7 @@
 
 **Purpose**: Project initialization and dependency setup
 
-- [X] T001 Add all dependencies to Cargo.toml (gtk4, adw, glib, gio, oo7, async-channel, parking_lot, uuid, chrono, serde, serde_json, tracing, tracing-subscriber, thiserror, anyhow, qobuz-api-rust-refactor path dep)
+- [X] T001 Add all dependencies to Cargo.toml (gtk4, adw, glib, gio, oo7, async-channel, parking_lot, uuid, chrono, serde, serde_json, tracing, tracing-subscriber, thiserror, anyhow, qobuz-api path dep)
 - [X] T002 Create module file structure with mod declarations: src/app.rs, src/window.rs, src/errors.rs, src/auth/mod.rs, src/auth/keyring.rs, src/auth/session.rs, src/auth/login_view.rs, src/search/mod.rs, src/search/view.rs, src/search/controller.rs, src/browse/mod.rs, src/browse/album_view.rs, src/browse/artist_view.rs, src/browse/playlist_view.rs, src/download/mod.rs, src/download/manager.rs, src/download/worker.rs, src/download/view.rs, src/download/progress.rs, src/preferences/mod.rs, src/preferences/dialog.rs, src/preferences/settings.rs, src/cover_art/mod.rs, src/cover_art/cache.rs; wire mod declarations in src/main.rs
 
 ---
@@ -79,7 +79,7 @@
 - [X] T018 [US1] Wire search module in src/search/mod.rs and integrate search view into src/window.rs NavigationView as the default page
 - [X] T019 [P] [US1] Implement DownloadTask, DownloadItem (Track/Album/Playlist), DownloadStatus (Queued/Active/Completed/Failed/Cancelled/Skipped), DownloadProgress { bytes_downloaded, total_bytes } types in src/download/progress.rs
 - [X] T020 [US1] Implement DownloadManager in src/download/manager.rs: async_channel::bounded(16) for DownloadCommand (Enqueue/Cancel/Shutdown), glib::MainContext::channel for DownloadEvent, semaphore with 3 permits for concurrency, task tracking HashMap<Uuid, DownloadTask>
-- [X] T021 [US1] Implement download worker in src/download/worker.rs: process commands from channel, spawn individual downloads via gio::spawn_blocking, report Started/Progress/Completed/Failed/Skipped events, handle file-exists skip with toast notification, retry transient failures (network timeouts, 5xx, 429) with exponential backoff (up to 3 retries, 2s/4s/8s), delegate metadata tag and cover art embedding to qobuz-api-rust-refactor's embedder module (FR-005)
+- [X] T021 [US1] Implement download worker in src/download/worker.rs: process commands from channel, spawn individual downloads via gio::spawn_blocking, report Started/Progress/Completed/Failed/Skipped events, handle file-exists skip with toast notification, retry transient failures (network timeouts, 5xx, 429) with exponential backoff (up to 3 retries, 2s/4s/8s), delegate metadata tag and cover art embedding to qobuz-api's embedder module (FR-005)
 - [X] T022 [US1] Implement download view UI in src/download/view.rs: active downloads list with per-download progress bar, file name label, quality label, status indicator
 - [X] T023 [US1] Wire download module in src/download/mod.rs: connect search result track selection to DownloadCommand::Enqueue, connect DownloadEvent to download view updates, integrate download view into src/window.rs
 - [X] T024 [P] [US1] Implement cover art cache in src/cover_art/cache.rs: HashMap<String, gdk::Texture> with spawn_blocking HTTP fetch, gdk::Texture::from_bytes for GPU-ready textures, on-demand loading for list items and detail views

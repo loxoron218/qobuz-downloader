@@ -22,7 +22,7 @@ use {
         gio::ApplicationFlags,
         prelude::{ApplicationExt, ApplicationExtManual, GtkWindowExt},
     },
-    qobuz_api_rust_refactor::api::service::QobuzApiService,
+    qobuz_api::api::service::QobuzApiService,
     tracing::{Level, error},
     tracing_subscriber::fmt,
 };

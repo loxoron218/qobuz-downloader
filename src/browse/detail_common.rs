@@ -20,7 +20,7 @@ use {
         prelude::{BoxExt, ButtonExt, TextureExt, WidgetExt},
     },
     parking_lot::Mutex,
-    qobuz_api_rust_refactor::models::{album::Image as ModelImage, track::Track},
+    qobuz_api::models::{album::Image as ModelImage, track::Track},
     tracing::{error, warn},
 };
 

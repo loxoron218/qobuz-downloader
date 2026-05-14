@@ -142,7 +142,7 @@ enum SearchEvent {
 
 **Invariants**:
 - Results for a query may arrive after a newer query has been submitted; GUI must discard stale results by comparing `query`
-- `SearchResult` is the type from `qobuz_api_rust_refactor::models::search`
+- `SearchResult` is the type from `qobuz_api::models::search`
 
 ## Channel 4: Browse Results
 
@@ -216,7 +216,7 @@ enum AuthEvent {
 ## Channel 6: Metadata Embedder Contract
 
 **Type**: Direct function call (synchronous, called from download worker thread)
-**Interface Provider**: `qobuz_api_rust_refactor::metadata::embedder`
+**Interface Provider**: `qobuz_api::metadata::embedder`
 **Direction**: Download Worker → Embedder (blocking call, no channel needed)
 
 ### Contract

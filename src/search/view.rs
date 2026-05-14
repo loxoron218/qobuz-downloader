@@ -40,7 +40,7 @@ use {
     },
     num_traits::AsPrimitive,
     parking_lot::Mutex,
-    qobuz_api_rust_refactor::{api::service::QobuzApiService, models::search::SearchResult},
+    qobuz_api::{api::service::QobuzApiService, models::search::SearchResult},
     tracing::warn,
 };
 

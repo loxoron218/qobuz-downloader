@@ -5,12 +5,12 @@
 
 ## Summary
 
-Build a GNOME/Libadwaita desktop application for downloading music from Qobuz. The application wraps the `qobuz-api-rust-refactor` library, providing a GUI for authentication (via GNOME Keyring), catalog search, album/track/playlist browsing, and high-quality audio downloading with progress tracking. The architecture uses `gio::spawn_blocking` to offload blocking API calls from the GUI thread, `async-channel` for inter-thread communication, and a download manager with a 3-slot concurrency limit.
+Build a GNOME/Libadwaita desktop application for downloading music from Qobuz. The application wraps the `qobuz-api` library, providing a GUI for authentication (via GNOME Keyring), catalog search, album/track/playlist browsing, and high-quality audio downloading with progress tracking. The architecture uses `gio::spawn_blocking` to offload blocking API calls from the GUI thread, `async-channel` for inter-thread communication, and a download manager with a 3-slot concurrency limit.
 
 ## Technical Context
 
 **Language/Version**: Rust 2024 edition
-**Primary Dependencies**: `gtk4`, `adw` (libadwaita), `qobuz-api-rust-refactor` (local path dep), `oo7` (keyring), `async-channel`, `parking_lot`, `serde` + `serde_json`, `tracing` + `tracing-subscriber`, `thiserror`, `anyhow`
+**Primary Dependencies**: `gtk4`, `adw` (libadwaita), `qobuz-api` (local path dep), `oo7` (keyring), `async-channel`, `parking_lot`, `serde` + `serde_json`, `tracing` + `tracing-subscriber`, `thiserror`, `anyhow`
 **Omitted from AGENTS.md stack**: `dynosaur` (no dynamic trait objects needed), `rayon` (no CPU-parallel workloads), `crossbeam` (using `async-channel` + `parking_lot` instead), `criterion` (no benchmarks in initial scope)
 **Storage**: XDG directories for preferences (`serde_json`), GNOME Keyring via `oo7` for credentials
 **Testing**: `cargo test`, `tempfile` for test fixtures

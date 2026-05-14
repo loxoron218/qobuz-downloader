@@ -3,9 +3,7 @@
 use std::fmt::{Display, Formatter, Result as FmtResult};
 
 use {
-    qobuz_api_rust_refactor::models::file_url::quality::{
-        FLAC_16_44, FLAC_24_96, FLAC_24_192, MP3_320,
-    },
+    qobuz_api::models::file_url::quality::{FLAC_16_44, FLAC_24_96, FLAC_24_192, MP3_320},
     serde::{Deserialize, Serialize},
 };
 

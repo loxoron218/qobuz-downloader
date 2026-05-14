@@ -4,9 +4,9 @@
 
 ## R1: Blocking API Library + GUI Thread Integration
 
-**Decision**: Use `gio::spawn_blocking` to offload all `qobuz-api-rust-refactor` calls to a thread pool, with `glib::MainContext::channel` for returning results to the GUI thread.
+**Decision**: Use `gio::spawn_blocking` to offload all `qobuz-api` calls to a thread pool, with `glib::MainContext::channel` for returning results to the GUI thread.
 
-**Rationale**: The `qobuz-api-rust-refactor` library exposes blocking methods (internally uses `Runtime::block_on` via `delegate!` macros). GTK requires the main thread to remain free for event processing. `gio::spawn_blocking` is the idiomatic GTK-Rs pattern documented in the gtk4-rs book. Results are sent back via `glib::MainContext::channel<PRIORITY, Msg>` which delivers messages on the main loop, enabling safe UI updates.
+**Rationale**: The `qobuz-api` library exposes blocking methods (internally uses `Runtime::block_on` via `delegate!` macros). GTK requires the main thread to remain free for event processing. `gio::spawn_blocking` is the idiomatic GTK-Rs pattern documented in the gtk4-rs book. Results are sent back via `glib::MainContext::channel<PRIORITY, Msg>` which delivers messages on the main loop, enabling safe UI updates.
 
 **Alternatives considered**:
 - **tokio::spawn_blocking**: Works but requires managing a separate tokio runtime alongside the GLib main loop. Adds complexity without benefit since GLib already provides thread pool management.
@@ -88,7 +88,7 @@ DownloadView ──[cmd_tx]──→ DownloadManager
 
 **Decision**: In-memory `HashMap<String, gdk::Texture>` cache with async loading via `gio::spawn_blocking`.
 
-**Rationale**: Cover art thumbnails appear in search results and detail views. The `qobuz-api-rust-refactor` library provides cover art URLs via `Image` structs. Downloading cover art is network I/O that must be offloaded. A simple in-memory cache avoids redundant downloads. `gdk::Texture::from_bytes()` creates GPU-ready textures from downloaded bytes.
+**Rationale**: Cover art thumbnails appear in search results and detail views. The `qobuz-api` library provides cover art URLs via `Image` structs. Downloading cover art is network I/O that must be offloaded. A simple in-memory cache avoids redundant downloads. `gdk::Texture::from_bytes()` creates GPU-ready textures from downloaded bytes.
 
 **Cache strategy**:
 - LRU or unbounded (cover art is small, typically <100KB per image)
@@ -118,7 +118,7 @@ struct AppSettings {
 
 ## R7: Quality Format Mapping
 
-**Decision**: Use `qobuz_api_rust_refactor::models::file_url::quality` constants directly, wrapped in a local enum for UI display.
+**Decision**: Use `qobuz_api::models::file_url::quality` constants directly, wrapped in a local enum for UI display.
 
 **Rationale**: The API library already defines quality constants (`MP3_320 = 5`, `FLAC_16_44 = 6`, `FLAC_24_96 = 7`, `FLAC_24_192 = 27`). The GUI wraps these in a local enum with `Display` impl for user-facing labels and conversion to `i32` for API calls.
 

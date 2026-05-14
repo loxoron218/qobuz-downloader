@@ -4,7 +4,7 @@
 
 ## Overview
 
-This document defines the application's internal data types. The application does not define a database schema; it wraps the `qobuz-api-rust-refactor` library types and adds GUI-specific state.
+This document defines the application's internal data types. The application does not define a database schema; it wraps the `qobuz-api` library types and adds GUI-specific state.
 
 ## Application State
 
@@ -211,7 +211,7 @@ These types are defined per-module and not shared across the full data model:
 | `SearchEvent` | Search | `src/search/controller.rs` — T015 |
 | `BrowseEvent` | Browse | `src/browse/mod.rs` — T030 |
 
-## External Types (from qobuz-api-rust-refactor)
+## External Types (from qobuz-api)
 
 These types are used directly from the API library without modification:
 

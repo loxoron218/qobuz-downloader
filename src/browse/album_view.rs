@@ -13,7 +13,7 @@ use {
         prelude::{BoxExt, WidgetExt},
     },
     parking_lot::Mutex,
-    qobuz_api_rust_refactor::models::{album::Album, track::Track},
+    qobuz_api::models::{album::Album, track::Track},
 };
 
 use crate::{

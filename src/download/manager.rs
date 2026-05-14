@@ -18,7 +18,7 @@ use {
     async_channel::{Receiver, Sender, bounded, unbounded},
     libadwaita::gio::spawn_blocking,
     parking_lot::Mutex,
-    qobuz_api_rust_refactor::{
+    qobuz_api::{
         api::service::QobuzApiService, errors::QobuzApiError::Canceled,
         metadata::config::MetadataConfig, sanitize::sanitize_filename,
     },

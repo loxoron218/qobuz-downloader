@@ -20,7 +20,7 @@ use {
         prelude::{BoxExt, GestureSingleExt, WidgetExt},
     },
     parking_lot::Mutex,
-    qobuz_api_rust_refactor::{
+    qobuz_api::{
         api::service::QobuzApiService,
         models::{album::Album, artist::Artist},
     },

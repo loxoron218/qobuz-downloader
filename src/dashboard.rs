@@ -20,7 +20,7 @@ use {
         prelude::{BoxExt, ButtonExt, ComboRowExt, EditableExt, PreferencesGroupExt, WidgetExt},
     },
     parking_lot::Mutex,
-    qobuz_api_rust_refactor::api::service::QobuzApiService,
+    qobuz_api::api::service::QobuzApiService,
     regex::Regex,
     tracing::{error, info, warn},
     uuid::Uuid,

@@ -8,7 +8,7 @@
 - GTK4 development libraries (`gtk4-devel` on Fedora, `libgtk-4-dev` on Debian/Ubuntu)
 - libadwaita development libraries (`libadwaita-devel` on Fedora, `libadwaita-1-dev` on Debian/Ubuntu)
 - GNOME Keyring (typically pre-installed on GNOME desktops)
-- `qobuz-api-rust-refactor` library at `/home/arch/Downloads/github/qobuz-api-rust-refactor`
+- `qobuz-api` library at `/home/arch/Downloads/github/qobuz-api`
 
 ## Build
 

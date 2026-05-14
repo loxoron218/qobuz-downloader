@@ -31,6 +31,6 @@
 
 ## Notes
 
-- FR-016 mentions the `qobuz-api-rust-refactor` library dependency which is a boundary reference (what system to integrate with), not an implementation detail. This is acceptable.
+- FR-016 mentions the `qobuz-api` library dependency which is a boundary reference (what system to integrate with), not an implementation detail. This is acceptable.
 - FR-017 mentions GNOME HIG which is a user experience requirement, not an implementation prescription. This is acceptable.
 - All items pass validation. Spec is ready for `/speckit.clarify` or `/speckit.plan`.

@@ -3,8 +3,8 @@
 use std::io::Error;
 
 use {
-    oo7::Error as Oo7Error, qobuz_api_rust_refactor::errors::QobuzApiError,
-    serde_json::Error as SerdeError, thiserror::Error,
+    oo7::Error as Oo7Error, qobuz_api::errors::QobuzApiError, serde_json::Error as SerdeError,
+    thiserror::Error,
 };
 
 /// Application-level error type.

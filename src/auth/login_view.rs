@@ -17,7 +17,7 @@ use {
         prelude::{BoxExt, ButtonExt, CheckButtonExt, EditableExt, PreferencesGroupExt, WidgetExt},
     },
     parking_lot::Mutex,
-    qobuz_api_rust_refactor::api::service::QobuzApiService,
+    qobuz_api::api::service::QobuzApiService,
     tracing::warn,
 };
 
