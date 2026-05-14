@@ -464,10 +464,10 @@ pub fn build(
         .css_classes(["suggested-action", "pill"])
         .halign(Center)
         .hexpand(true)
-        .margin_top(6)
-        .margin_bottom(6)
-        .margin_start(12)
-        .margin_end(12)
+        .margin_top(18)
+        .margin_bottom(18)
+        .margin_start(24)
+        .margin_end(24)
         .build();
 
     download_group.add(&url_entry);
