@@ -342,13 +342,13 @@ fn handle_browse_event(
             );
         }
         Playlist { playlist } => {
-            let widgets =
+            let root =
                 playlist_view::build(&playlist, Arc::clone(&state.settings), cmd_sender.clone());
-            let page = NavigationPage::new(&widgets.root, "Playlist");
+            let page = NavigationPage::new(&root, "Playlist");
             nav_view.push(&page);
         }
         Artist { artist, albums } => {
-            let widgets = artist_view::build(
+            let root = artist_view::build(
                 &artist,
                 &albums,
                 Arc::clone(&state.settings),
@@ -356,7 +356,7 @@ fn handle_browse_event(
                 &state.api_service,
                 browse_sender,
             );
-            let page = NavigationPage::new(&widgets.root, "Artist");
+            let page = NavigationPage::new(&root, "Artist");
             nav_view.push(&page);
         }
         Error { context, error } => {

@@ -23,21 +23,6 @@ use crate::{
     preferences::settings::AppSettings,
 };
 
-/// Widgets returned by the playlist detail view builder.
-#[derive(Clone)]
-pub struct PlaylistDetailWidgets {
-    /// Root toolbar view widget.
-    pub root: ToolbarView,
-    /// Container box where track rows are appended.
-    pub track_container: Box,
-    /// Download playlist button.
-    pub download_button: Button,
-    /// Quality selector dropdown.
-    pub quality_dropdown: DropDown,
-    /// Toast overlay for download feedback.
-    pub toast_overlay: ToastOverlay,
-}
-
 /// Builds the playlist detail view with full metadata and tracks.
 ///
 /// Playlists from the API include tracks in the same response, so this is a single-phase build.
@@ -50,12 +35,12 @@ pub struct PlaylistDetailWidgets {
 ///
 /// # Returns
 ///
-/// Playlist detail view widgets
+/// Root toolbar view
 pub fn build(
     playlist: &Playlist,
     settings: Arc<Mutex<AppSettings>>,
     cmd_sender: Sender<DownloadCommand>,
-) -> PlaylistDetailWidgets {
+) -> ToolbarView {
     let name = playlist.name.as_deref().unwrap_or("Playlist");
     let header_scroll = build_header_scroll(name);
     let content = &header_scroll.content;
@@ -95,13 +80,7 @@ pub fn build(
         &toast_overlay,
     );
 
-    PlaylistDetailWidgets {
-        root: header_scroll.toolbar,
-        track_container,
-        download_button,
-        quality_dropdown,
-        toast_overlay,
-    }
+    header_scroll.toolbar
 }
 
 /// Builds the playlist info section with cover art, creator, metadata, and description.

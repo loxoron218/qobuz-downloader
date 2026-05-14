@@ -39,21 +39,6 @@ use crate::{
     preferences::settings::AppSettings,
 };
 
-/// Widgets returned by the artist detail view builder.
-#[derive(Clone)]
-pub struct ArtistDetailWidgets {
-    /// Root toolbar view widget.
-    pub root: ToolbarView,
-    /// Container box where album rows are appended.
-    pub album_container: Box,
-    /// Download all button.
-    pub download_button: Button,
-    /// Quality selector dropdown.
-    pub quality_dropdown: DropDown,
-    /// Toast overlay for transient notifications.
-    pub toast_overlay: ToastOverlay,
-}
-
 /// Builds the artist detail view with albums from the artist catalog.
 ///
 /// # Arguments
@@ -65,7 +50,7 @@ pub struct ArtistDetailWidgets {
 ///
 /// # Returns
 ///
-/// Artist detail view widgets
+/// Root toolbar view
 pub fn build(
     artist: &Artist,
     albums: &[Album],
@@ -73,7 +58,7 @@ pub fn build(
     cmd_sender: Sender<DownloadCommand>,
     api_service: &Arc<Mutex<QobuzApiService>>,
     browse_sender: &Sender<BrowseEvent>,
-) -> ArtistDetailWidgets {
+) -> ToolbarView {
     let name = artist.name.as_deref().unwrap_or("Artist");
     let header_scroll = build_header_scroll(name);
     let content = &header_scroll.content;
@@ -117,13 +102,7 @@ pub fn build(
         &toast_overlay,
     );
 
-    ArtistDetailWidgets {
-        root: header_scroll.toolbar,
-        album_container,
-        download_button,
-        quality_dropdown,
-        toast_overlay,
-    }
+    header_scroll.toolbar
 }
 
 /// Builds the artist info section with name and image.
