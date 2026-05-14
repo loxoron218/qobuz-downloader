@@ -1,14 +1,8 @@
 //! Download progress tracking and quality types.
 
-use std::{collections::HashMap, path::PathBuf};
+use std::{collections::HashMap, path::PathBuf, time::SystemTime};
 
-use {
-    chrono::{DateTime, Local},
-    libadwaita::gtk::gdk::Texture,
-    num_traits::AsPrimitive,
-    parking_lot::Mutex,
-    uuid::Uuid,
-};
+use {libadwaita::gtk::gdk::Texture, num_traits::AsPrimitive, parking_lot::Mutex, uuid::Uuid};
 
 use crate::types::Quality;
 
@@ -199,7 +193,7 @@ pub enum DownloadStatus {
 #[derive(Clone, Debug)]
 pub struct DownloadTask {
     /// Completion time.
-    pub completed_at: Option<DateTime<Local>>,
+    pub completed_at: Option<SystemTime>,
     /// Unique task identifier.
     pub id: Uuid,
     /// What to download.
@@ -244,6 +238,6 @@ pub fn cancel_all_tasks(tasks: &Mutex<HashMap<Uuid, DownloadTask>>) {
         .filter(|t| t.status == DownloadStatus::Active || t.status == DownloadStatus::Queued)
     {
         task.status = DownloadStatus::Cancelled;
-        task.completed_at = Some(Local::now());
+        task.completed_at = Some(SystemTime::now());
     }
 }

@@ -5,7 +5,6 @@ version = "0.1.0"
 
 [dependencies]
 async-channel = "2.5.0"
-chrono = "0.4.44"
 libadwaita = { version = "0.9.1", features = [
     "gio_v2_80",
     "gtk_v4_22",

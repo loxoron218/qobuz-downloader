@@ -11,11 +11,11 @@ use std::{
         },
     },
     thread::{Scope, scope},
+    time::SystemTime,
 };
 
 use {
     async_channel::{Receiver, Sender, bounded, unbounded},
-    chrono::Local,
     libadwaita::gio::spawn_blocking,
     parking_lot::Mutex,
     qobuz_api_rust_refactor::{
@@ -320,7 +320,7 @@ fn handle_download_result(
             let mut map = tasks.lock();
             if let Some(t) = map.get_mut(&task_id) {
                 t.status = StatusCompleted;
-                t.completed_at = Some(Local::now());
+                t.completed_at = Some(SystemTime::now());
             }
             drop(map);
             send_event(evt_sender, Completed { id: task_id });
@@ -352,7 +352,7 @@ fn mark_download_failed(tasks: &Arc<Mutex<HashMap<Uuid, DownloadTask>>>, task_id
         if t.status != Cancelled {
             t.status = ItemFailed;
         }
-        t.completed_at = Some(Local::now());
+        t.completed_at = Some(SystemTime::now());
     }
 }
 
@@ -381,7 +381,7 @@ fn handle_cancel(
     let mut map = tasks.lock();
     if let Some(t) = map.get_mut(&id) {
         t.status = Cancelled;
-        t.completed_at = Some(Local::now());
+        t.completed_at = Some(SystemTime::now());
     }
     drop(map);
     send_event(

@@ -11,11 +11,11 @@ use std::{
         Arc,
         atomic::{AtomicBool, Ordering::Relaxed},
     },
+    time::SystemTime,
 };
 
 use {
     async_channel::{Receiver, Sender},
-    chrono::Local,
     libadwaita::{
         PreferencesGroup, StatusPage,
         gdk::Texture,
@@ -263,7 +263,7 @@ fn mark_task_cancelled(tasks: &Arc<Mutex<HashMap<Uuid, DownloadTask>>>, id: Uuid
     let mut map = tasks.lock();
     if let Some(t) = map.get_mut(&id) {
         t.status = Cancelled;
-        t.completed_at = Some(Local::now());
+        t.completed_at = Some(SystemTime::now());
     }
 }
 
@@ -631,7 +631,7 @@ fn handle_event(
             let mut map = tasks.lock();
             if let Some(task) = map.get_mut(id) {
                 task.status = StatusCompleted;
-                task.completed_at = Some(Local::now());
+                task.completed_at = Some(SystemTime::now());
             }
             drop(map);
             refresh_model_item(model, id, tasks);
@@ -647,7 +647,7 @@ fn handle_event(
                 task.status = ItemFailed;
             }
             if let Some(task) = map.get_mut(id) {
-                task.completed_at = Some(Local::now());
+                task.completed_at = Some(SystemTime::now());
             }
             drop(map);
             refresh_model_item(model, id, tasks);
