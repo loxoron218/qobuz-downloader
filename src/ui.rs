@@ -28,8 +28,11 @@ pub fn debounce_elapsed(last_ts: &AtomicU64, min_gap_ms: u64) -> bool {
     let dur = SystemTime::now()
         .duration_since(UNIX_EPOCH)
         .unwrap_or_default();
-    let now = dur.as_secs() * 1000 + u64::from(dur.subsec_millis());
-    if now - last_ts.load(Relaxed) < min_gap_ms {
+    let now = dur
+        .as_secs()
+        .saturating_mul(1000)
+        .saturating_add(u64::from(dur.subsec_millis()));
+    if now.saturating_sub(last_ts.load(Relaxed)) < min_gap_ms {
         return false;
     }
     last_ts.store(now, Relaxed);

@@ -30,7 +30,7 @@ use crate::{
 };
 
 /// Login method selected by the user.
-#[derive(Clone, Copy, Debug, PartialEq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum LoginMethod {
     /// Email and password authentication.
     EmailPassword,

@@ -80,11 +80,21 @@ mod tests {
         result
     }
 
+    /// Verifies that a fast operation is instrumented below the threshold.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the underlying `instrumented` future resolves unexpectedly.
     #[TokioTest]
     async fn instrumented_under_threshold() {
         instrumented("fast_op", fast_future()).await;
     }
 
+    /// Verifies that a slow operation is instrumented above the threshold.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the underlying `instrumented` future resolves unexpectedly.
     #[TokioTest]
     async fn instrumented_over_threshold() {
         instrumented("slow_op", slow_future()).await;

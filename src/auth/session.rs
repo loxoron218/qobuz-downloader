@@ -33,7 +33,7 @@ pub enum AuthEvent {
 }
 
 /// Tracks the current authentication status.
-#[derive(Clone, Debug, Default, PartialEq)]
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub enum AuthState {
     /// No credentials stored or login required.
     #[default]

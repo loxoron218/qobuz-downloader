@@ -25,7 +25,7 @@ use crate::{
 };
 
 /// Maps a `Quality` value to the `ComboRow` selected index.
-fn quality_to_index(quality: Quality) -> u32 {
+const fn quality_to_index(quality: Quality) -> u32 {
     match quality {
         Quality::Mp3_320 => 0,
         Quality::Flac16_44 => 1,
@@ -35,7 +35,7 @@ fn quality_to_index(quality: Quality) -> u32 {
 }
 
 /// Maps a `ComboRow` selected index to a `Quality` value.
-fn index_to_quality(index: u32) -> Quality {
+const fn index_to_quality(index: u32) -> Quality {
     match index {
         0 => Quality::Mp3_320,
         2 => Quality::Flac24_96,

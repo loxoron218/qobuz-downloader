@@ -11,7 +11,7 @@ use std::{
 };
 
 use {
-    async_channel::{Receiver, Sender, unbounded},
+    async_channel::{Receiver, SendError, Sender, unbounded},
     libadwaita::{
         HeaderBar, NavigationView, SplitButton, Toast, ToastOverlay, ToolbarView,
         gdk::{Key, Texture},
@@ -96,7 +96,7 @@ enum SearchCategory {
 
 impl SearchCategory {
     /// Returns the display label for this category.
-    fn label(self) -> &'static str {
+    const fn label(self) -> &'static str {
         match self {
             Self::Tracks => "Tracks",
             Self::Albums => "Albums",
@@ -106,7 +106,7 @@ impl SearchCategory {
     }
 
     /// Returns the corresponding search scope for this category.
-    fn to_scope(self) -> SearchScope {
+    const fn to_scope(self) -> SearchScope {
         match self {
             Self::Tracks => SearchScope::Tracks,
             Self::Albums => SearchScope::Albums,
@@ -532,9 +532,10 @@ pub fn build(
     let texture_forward = texture_register.clone();
     MainContext::default().spawn_local(async move {
         while let Ok((url, texture)) = texture_receiver.recv().await {
-            let _ = texture_forward
+            let result = texture_forward
                 .send(TextureEvent::Loaded { url, texture })
                 .await;
+            log_texture_send_error(result);
         }
     });
     setup_texture_receiver(texture_event_receiver);
@@ -766,10 +767,7 @@ fn attach_cover_art(item: &SearchResultItem, picture: &Picture, ctx: &SearchCtx)
         if let Some(texture) = ctx.cover_art_cache.get(&url) {
             picture.set_paintable(Some(&texture));
         } else {
-            let _ = ctx.texture_register.send_blocking(TextureEvent::Register {
-                url: url.clone(),
-                picture: picture.clone(),
-            });
+            register_cover_texture(&ctx.texture_register, url.clone(), picture.clone());
             ctx.cover_art_cache
                 .start_load(url, ctx.texture_sender.clone());
         }
@@ -1171,10 +1169,10 @@ fn send_fetched_url(
     tx: &Sender<(usize, Option<String>)>,
     api_service: &Arc<Mutex<QobuzApiService>>,
     idx: usize,
-    id: String,
+    id: &str,
     is_artist: bool,
 ) {
-    let url = fetch_cover_url(api_service, &id, is_artist);
+    let url = fetch_cover_url(api_service, id, is_artist);
     if tx.send_blocking((idx, url)).is_err() {
         warn!(id = %id, "Failed to send cover URL to channel");
     }
@@ -1210,7 +1208,7 @@ fn fetch_missing_images(pending: Vec<AsyncCoverFetch>, ctx: &SearchCtx) {
 
     spawn(move || {
         for (idx, (id, is_artist)) in fetch_requests.into_iter().enumerate() {
-            send_fetched_url(&tx, &api_service, idx, id, is_artist);
+            send_fetched_url(&tx, &api_service, idx, &id, is_artist);
         }
     });
 
@@ -1302,10 +1300,7 @@ fn update_picture_with_cover(
     if let Some(texture) = cover_art_cache.get(&url) {
         picture.set_paintable(Some(&texture));
     } else {
-        let _ = texture_register.send_blocking(TextureEvent::Register {
-            url: url.clone(),
-            picture,
-        });
+        register_cover_texture(texture_register, url.clone(), picture);
         cover_art_cache.start_load(url, texture_sender.clone());
     }
 }
@@ -1411,7 +1406,7 @@ fn populate_results(ctx: &SearchCtx, result: &SearchResult, query: &str) {
 }
 
 /// Returns the search category for an item.
-fn item_category(item: &SearchResultItem) -> SearchCategory {
+const fn item_category(item: &SearchResultItem) -> SearchCategory {
     match item {
         SearchResultItem::Track { .. } => SearchCategory::Tracks,
         SearchResultItem::Album { .. } => SearchCategory::Albums,
@@ -1497,10 +1492,10 @@ fn find_item_at_position(items: &[SearchResultItem], row_index: u32) -> Option<A
         let category = item_category(item);
         if current_category != Some(category) {
             current_category = Some(category);
-            pos += 1;
+            pos = pos.saturating_add(1);
         }
         if pos != row_index {
-            pos += 1;
+            pos = pos.saturating_add(1);
             continue;
         }
         return match item {
@@ -1520,6 +1515,20 @@ fn setup_search_receiver(receiver: Receiver<SearchEvent>, ctx: SearchCtx) {
             handle_search_event(event, &ctx);
         }
     });
+}
+
+/// Logs a texture-forward send failure if the channel is closed.
+fn log_texture_send_error(result: Result<(), SendError<TextureEvent>>) {
+    if let Err(e) = result {
+        warn!(error = %e, "Failed to forward texture load event");
+    }
+}
+
+/// Registers a picture for a cover URL, logging send failures.
+fn register_cover_texture(sender: &Sender<TextureEvent>, url: String, picture: Picture) {
+    if let Err(e) = sender.send_blocking(TextureEvent::Register { url, picture }) {
+        warn!(error = %e, "Failed to register cover texture");
+    }
 }
 
 /// Sets up the cover art texture receiver to update pictures when textures load.

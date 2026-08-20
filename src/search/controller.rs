@@ -92,7 +92,7 @@ pub enum SearchScope {
 impl SearchScope {
     /// Converts a u32 index to a `SearchScope`.
     #[must_use]
-    pub fn from_u32(v: u32) -> Self {
+    pub const fn from_u32(v: u32) -> Self {
         match v {
             1 => Self::Albums,
             2 => Self::Tracks,
@@ -103,7 +103,7 @@ impl SearchScope {
     }
 
     /// Converts this `SearchScope` to a u32 index for the dropdown.
-    pub fn to_u32(self) -> u32 {
+    pub const fn to_u32(self) -> u32 {
         match self {
             Self::All => 0,
             Self::Albums => 1,
@@ -176,7 +176,7 @@ fn execute_search_scoped(
 
 /// Checks if the current search query is stale.
 fn is_stale_query(counter: &Arc<AtomicU64>, query_id: u64, query: &str) -> bool {
-    let stale = counter.load(Relaxed) != query_id + 1;
+    let stale = counter.load(Relaxed) != query_id.saturating_add(1);
     if stale {
         info!(query = %query, "Discarding stale search result");
     }

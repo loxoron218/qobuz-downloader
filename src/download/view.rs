@@ -19,7 +19,7 @@ use {
         PreferencesGroup, StatusPage,
         gdk::Texture,
         gio::{ListStore, spawn_blocking},
-        glib::{BoxedAnyObject, MainContext, Object, object::ObjectType},
+        glib::{BoxedAnyObject, MainContext, Object},
         gtk::{
             Align::{Center, Start},
             Box, Button,
@@ -65,8 +65,6 @@ struct RowContext {
     tasks: TaskMap,
     /// List model backing the queue view.
     model: ListStore,
-    /// Map of button pointer addresses to task IDs.
-    task_map: Arc<Mutex<HashMap<usize, u64>>>,
 }
 
 /// Shared map of active download tasks, keyed by task ID.
@@ -78,19 +76,6 @@ fn clone_row_context(ctx: &RowContext) -> RowContext {
         cmd_sender: Arc::clone(&ctx.cmd_sender),
         tasks: Arc::clone(&ctx.tasks),
         model: ctx.model.clone(),
-        task_map: Arc::clone(&ctx.task_map),
-    }
-}
-
-/// Runs the event-processing loop for download events.
-async fn run_event_loop(
-    evt_receiver: Receiver<DownloadEvent>,
-    model: ListStore,
-    stack: Stack,
-    tasks: Arc<Mutex<HashMap<u64, DownloadTask>>>,
-) {
-    while let Ok(event) = evt_receiver.recv().await {
-        handle_event(&event, &model, &stack, &tasks);
     }
 }
 
@@ -200,12 +185,26 @@ pub fn build_queue_section(
             stack.clone(),
         );
 
-        MainContext::default().spawn_local(run_event_loop(evt_receiver, model, stack, tasks_owned));
+        spawn_download_event_loop(evt_receiver, model, stack, tasks_owned);
     }
 
     QueueSection {
         group: download_queue_group,
     }
+}
+
+/// Processes download events on the main loop and updates the queue model.
+fn spawn_download_event_loop(
+    evt_receiver: Receiver<DownloadEvent>,
+    model: ListStore,
+    stack: Stack,
+    tasks: Arc<Mutex<HashMap<u64, DownloadTask>>>,
+) {
+    MainContext::default().spawn_local(async move {
+        while let Ok(event) = evt_receiver.recv().await {
+            handle_event(&event, &model, &stack, &tasks);
+        }
+    });
 }
 
 /// Sets cancel flags for all given task IDs.
@@ -257,15 +256,20 @@ fn send_cancel_command(cmd_sender: &Arc<Sender<DownloadCommand>>, cmd: DownloadC
 }
 
 /// Wires the cancel button to send a `Cancel` command and update the UI immediately.
-/// The task ID is looked up from a shared map keyed by button pointer address.
-fn wire_cancel_button(button: &Button, ctx: &RowContext) {
+/// The task ID is read from the row's currently bound item.
+fn wire_cancel_button(button: &Button, list_item: &ListItem, ctx: &RowContext) {
     let ctx = clone_row_context(ctx);
-    let btn_key = button.as_ptr() as usize;
+    let list_item = list_item.clone();
 
     button.connect_clicked(move |_| {
-        let Some(id) = ctx.task_map.lock().get(&btn_key).copied() else {
+        let Some(item) = list_item.item() else {
             return;
         };
+        let Ok(boxed) = item.downcast::<BoxedAnyObject>() else {
+            return;
+        };
+        let data = boxed.borrow::<DownloadRowData>();
+        let id = data.task.id;
         send_cancel_command(&ctx.cmd_sender, Cancel { id });
         mark_task_cancelled(&ctx.tasks, id);
         refresh_model_item(&ctx.model, id, &ctx.tasks);
@@ -292,7 +296,6 @@ fn setup_download_queue_factory(
         cmd_sender: Arc::clone(cmd_sender),
         tasks: Arc::clone(tasks),
         model: model.clone(),
-        task_map: Arc::new(Mutex::new(HashMap::new())),
     };
     factory.connect_setup({
         let ctx = clone_row_context(&ctx);
@@ -301,11 +304,8 @@ fn setup_download_queue_factory(
         }
     });
 
-    factory.connect_bind({
-        let task_map = Arc::clone(&ctx.task_map);
-        move |_, list_item_obj| {
-            bind_download_row(list_item_obj, &task_map);
-        }
+    factory.connect_bind(move |_, list_item_obj| {
+        bind_download_row(list_item_obj);
     });
 
     factory
@@ -380,13 +380,13 @@ fn setup_download_row(list_item_obj: &Object, ctx: &RowContext) {
     main_box.append(&progress_container);
     main_box.append(&action_container);
 
-    wire_cancel_button(&cancel_button, ctx);
+    wire_cancel_button(&cancel_button, list_item, ctx);
 
     list_item.set_child(Some(&main_box));
 }
 
 /// Binds download task data to row widgets within a `ListItem`.
-fn bind_download_row(list_item_obj: &Object, task_map: &Arc<Mutex<HashMap<usize, u64>>>) {
+fn bind_download_row(list_item_obj: &Object) {
     let Some(list_item) = list_item_obj.downcast_ref::<ListItem>() else {
         return;
     };
@@ -443,7 +443,6 @@ fn bind_download_row(list_item_obj: &Object, task_map: &Arc<Mutex<HashMap<usize,
     }
     if let Some(btn) = cancel_button {
         update_cancel_button(&btn, &task);
-        task_map.lock().insert(btn.as_ptr() as usize, task.id);
     }
 
     load_cover_texture(&cover_image, &task, texture.as_ref(), &boxed);
@@ -583,21 +582,18 @@ fn load_cover_texture(
             error!(error = %e, "Failed to send image bytes over channel");
         }
     });
-    MainContext::default().spawn_local(apply_cover_texture(rx, cover_image_clone, boxed_clone));
-}
-
-/// Receives image bytes, converts to a texture, and applies to the image widget.
-async fn apply_cover_texture(rx: Receiver<Vec<u8>>, image: Image, boxed: BoxedAnyObject) {
-    let Ok(bytes) = rx.recv().await else {
-        return;
-    };
-    let Some(tex) = bytes_to_texture(bytes) else {
-        return;
-    };
-    image.set_paintable(Some(&tex));
-    image.set_pixel_size(72);
-    let mut data = boxed.borrow_mut::<DownloadRowData>();
-    data.texture = Some(tex);
+    MainContext::default().spawn_local(async move {
+        let Ok(bytes) = rx.recv().await else {
+            return;
+        };
+        let Some(tex) = bytes_to_texture(bytes) else {
+            return;
+        };
+        cover_image_clone.set_paintable(Some(&tex));
+        cover_image_clone.set_pixel_size(72);
+        let mut data = boxed_clone.borrow_mut::<DownloadRowData>();
+        data.texture = Some(tex);
+    });
 }
 
 /// Handles a download event and updates the model.

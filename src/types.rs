@@ -23,7 +23,7 @@ pub enum Quality {
 
 impl Quality {
     /// Returns the file extension for this quality level.
-    pub fn extension(self) -> &'static str {
+    pub const fn extension(self) -> &'static str {
         match self {
             Self::Mp3_320 => "mp3",
             Self::Flac16_44 | Self::Flac24_96 | Self::Flac24_192 => "flac",

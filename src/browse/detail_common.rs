@@ -160,7 +160,7 @@ pub fn append_track_count_duration(section: &Box, track_count: i32, total_durati
 }
 
 /// Maps `DropDown` index to quality.
-pub fn quality_from_index(index: u32) -> Quality {
+pub const fn quality_from_index(index: u32) -> Quality {
     match index {
         0 => Mp3_320,
         2 => Flac24_96,

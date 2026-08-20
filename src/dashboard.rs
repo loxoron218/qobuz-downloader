@@ -182,7 +182,7 @@ fn parse_qobuz_url(input: &str) -> Option<ParsedUrl> {
 }
 
 /// Maps a `ComboRow` selected index to a `Quality` value.
-fn combo_index_to_quality(index: u32) -> Quality {
+const fn combo_index_to_quality(index: u32) -> Quality {
     match index {
         0 => Mp3_320,
         2 => Flac24_96,
@@ -192,7 +192,7 @@ fn combo_index_to_quality(index: u32) -> Quality {
 }
 
 /// Maps a `Quality` value to the `ComboRow` selected index.
-fn quality_to_combo_index(quality: Quality) -> u32 {
+const fn quality_to_combo_index(quality: Quality) -> u32 {
     match quality {
         Mp3_320 => 0,
         Flac16_44 => 1,

@@ -109,7 +109,7 @@ pub enum DownloadItem {
 
 impl DownloadItem {
     /// Returns the display title for this item.
-    pub fn title(&self) -> &str {
+    pub const fn title(&self) -> &str {
         match self {
             Self::Artist { name, .. } => name.as_str(),
             Self::Album { title, .. }
@@ -119,7 +119,7 @@ impl DownloadItem {
     }
 
     /// Returns the display subtitle (artist name or empty).
-    pub fn subtitle(&self) -> &str {
+    pub const fn subtitle(&self) -> &str {
         match self {
             Self::Album { artist, .. } | Self::Track { artist, .. } => artist.as_str(),
             Self::Artist { .. } | Self::Playlist { .. } => "",

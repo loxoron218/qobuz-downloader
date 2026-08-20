@@ -552,7 +552,7 @@ where
                 error!(track_id = tid, error = %e, "Failed to download album track");
             }
         }
-        let completed = u32::try_from(i + 1).unwrap_or(total);
+        let completed = u32::try_from(i).map_or(total, |n| n.saturating_add(1));
         progress_callback(completed, total);
     }
     last_path.ok_or_else(|| Download("No tracks downloaded".to_string()))
