@@ -1,7 +1,6 @@
 //! Main application window.
 
 use std::{
-    cell::RefCell,
     collections::HashMap,
     fs::{read_dir, remove_file},
     path::Path,
@@ -349,7 +348,7 @@ fn setup_browse_receiver(
     let nav_view = nav_view.clone();
     let state = state.clone();
     let cmd_sender = cmd_sender;
-    let pending_albums = RefCell::new(HashMap::<String, album_view::AlbumDetailWidgets>::new());
+    let mut pending_albums = HashMap::<String, album_view::AlbumDetailWidgets>::new();
 
     MainContext::default().spawn_local(async move {
         while let Ok(event) = receiver.recv().await {
@@ -359,7 +358,7 @@ fn setup_browse_receiver(
                 &cmd_sender,
                 &browse_sender,
                 &nav_view,
-                &pending_albums,
+                &mut pending_albums,
             );
         }
     });
@@ -372,21 +371,19 @@ fn handle_browse_event(
     cmd_sender: &Sender<DownloadCommand>,
     browse_sender: &Sender<BrowseEvent>,
     nav_view: &NavigationView,
-    pending_albums: &RefCell<HashMap<String, album_view::AlbumDetailWidgets>>,
+    pending_albums: &mut HashMap<String, album_view::AlbumDetailWidgets>,
 ) {
     match event {
         AlbumMeta { album } => {
             let album_id = album.id.clone().unwrap_or_default();
             let widgets = album_view::build_meta(&album);
-            pending_albums
-                .borrow_mut()
-                .insert(album_id, widgets.clone());
+            pending_albums.insert(album_id, widgets.clone());
             let page = NavigationPage::new(&widgets.root, "Album");
             nav_view.push(&page);
         }
         AlbumTracks { album, tracks } => {
             let album_id = album.id.clone().unwrap_or_default();
-            let Some(widgets) = pending_albums.borrow_mut().remove(&album_id) else {
+            let Some(widgets) = pending_albums.remove(&album_id) else {
                 error!(album_id = %album_id, "Received tracks for unknown album page");
                 return;
             };

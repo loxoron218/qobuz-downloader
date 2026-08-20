@@ -6,7 +6,6 @@
 
 use std::{
     collections::HashMap,
-    rc::Rc,
     sync::{
         Arc,
         atomic::{AtomicBool, Ordering::Relaxed},
@@ -61,7 +60,7 @@ pub struct QueueSection {
 /// Mutable shared state threaded through the download queue row lifecycle.
 struct RowContext {
     /// Command sender for issuing download commands.
-    cmd_sender: Rc<Sender<DownloadCommand>>,
+    cmd_sender: Arc<Sender<DownloadCommand>>,
     /// Shared task map for task status lookups and updates.
     tasks: TaskMap,
     /// List model backing the queue view.
@@ -76,7 +75,7 @@ pub type TaskMap = Arc<Mutex<HashMap<u64, DownloadTask>>>;
 /// Returns an owned copy of a row context for use in a `move` closure.
 fn clone_row_context(ctx: &RowContext) -> RowContext {
     RowContext {
-        cmd_sender: Rc::clone(&ctx.cmd_sender),
+        cmd_sender: Arc::clone(&ctx.cmd_sender),
         tasks: Arc::clone(&ctx.tasks),
         model: ctx.model.clone(),
         task_map: Arc::clone(&ctx.task_map),
@@ -157,7 +156,7 @@ pub fn build_queue_section(
 
     let model = ListStore::new::<BoxedAnyObject>();
     let tasks_for_factory = Arc::clone(tasks);
-    let cmd_sender_rc = Rc::new(cmd_sender);
+    let cmd_sender_rc = Arc::new(cmd_sender);
     let no_selection = NoSelection::new(Some(model.clone()));
     let queue_list = ListView::new(
         Some(no_selection),
@@ -195,7 +194,7 @@ pub fn build_queue_section(
         setup_cancel_all(
             &cancel_all_button,
             Arc::clone(&tasks_owned),
-            Rc::clone(&cmd_sender_rc),
+            Arc::clone(&cmd_sender_rc),
             cancel_signals,
             model.clone(),
             stack.clone(),
@@ -224,7 +223,7 @@ fn set_cancel_signals(ids: &[u64], cancel_signals: &Mutex<HashMap<u64, Arc<Atomi
 fn setup_cancel_all(
     button: &Button,
     tasks: Arc<Mutex<HashMap<u64, DownloadTask>>>,
-    cmd_sender: Rc<Sender<DownloadCommand>>,
+    cmd_sender: Arc<Sender<DownloadCommand>>,
     cancel_signals: Arc<Mutex<HashMap<u64, Arc<AtomicBool>>>>,
     model: ListStore,
     stack: Stack,
@@ -251,7 +250,7 @@ fn setup_cancel_all(
 }
 
 /// Sends a cancel command via the sender, logging failures.
-fn send_cancel_command(cmd_sender: &Rc<Sender<DownloadCommand>>, cmd: DownloadCommand) {
+fn send_cancel_command(cmd_sender: &Arc<Sender<DownloadCommand>>, cmd: DownloadCommand) {
     if let Err(e) = cmd_sender.try_send(cmd) {
         error!(error = %e, "Failed to send cancel command");
     }
@@ -284,13 +283,13 @@ fn mark_task_cancelled(tasks: &TaskMap, id: u64) {
 
 /// Sets up the `SignalListItemFactory` for download queue items.
 fn setup_download_queue_factory(
-    cmd_sender: &Rc<Sender<DownloadCommand>>,
+    cmd_sender: &Arc<Sender<DownloadCommand>>,
     tasks: &Arc<Mutex<HashMap<u64, DownloadTask>>>,
     model: &ListStore,
 ) -> SignalListItemFactory {
     let factory = SignalListItemFactory::new();
     let ctx = RowContext {
-        cmd_sender: Rc::clone(cmd_sender),
+        cmd_sender: Arc::clone(cmd_sender),
         tasks: Arc::clone(tasks),
         model: model.clone(),
         task_map: Arc::new(Mutex::new(HashMap::new())),

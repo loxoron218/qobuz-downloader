@@ -1,7 +1,7 @@
 //! Shared UI scaffolding utilities.
 
 use std::{
-    cell::Cell,
+    sync::atomic::{AtomicU64, Ordering::Relaxed},
     time::{SystemTime, UNIX_EPOCH},
 };
 
@@ -14,25 +14,25 @@ use libadwaita::{
 /// Debounces repeated events by timestamp, returning true when the gap since the last
 /// accepted event is at least `min_gap_ms` milliseconds.
 ///
-/// Updates the shared timestamp cell when the event is accepted.
+/// Updates the shared timestamp when the event is accepted.
 ///
 /// # Arguments
 ///
-/// * `last_ts` - Cell tracking the last accepted timestamp
+/// * `last_ts` - Atomic timestamp tracking the last accepted event
 /// * `min_gap_ms` - Minimum gap between accepted events
 ///
 /// # Returns
 ///
 /// `true` if the event should be processed, `false` if it is too soon.
-pub fn debounce_elapsed(last_ts: &Cell<u64>, min_gap_ms: u64) -> bool {
+pub fn debounce_elapsed(last_ts: &AtomicU64, min_gap_ms: u64) -> bool {
     let dur = SystemTime::now()
         .duration_since(UNIX_EPOCH)
         .unwrap_or_default();
     let now = dur.as_secs() * 1000 + u64::from(dur.subsec_millis());
-    if now - last_ts.get() < min_gap_ms {
+    if now - last_ts.load(Relaxed) < min_gap_ms {
         return false;
     }
-    last_ts.set(now);
+    last_ts.store(now, Relaxed);
     true
 }
 

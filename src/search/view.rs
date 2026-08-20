@@ -2,10 +2,11 @@
 //! Hi-Res and explicit content indicators, inline `SplitButton` for download/queue actions.
 
 use std::{
-    cell::{Cell, RefCell},
     collections::HashMap,
-    rc::Rc,
-    sync::Arc,
+    sync::{
+        Arc,
+        atomic::{AtomicBool, AtomicU64, Ordering::Relaxed},
+    },
     thread::spawn,
 };
 
@@ -70,6 +71,16 @@ enum ActivationTarget {
     Playlist(String),
 }
 
+/// A picture widget awaiting an asynchronously fetched cover art.
+struct AsyncCoverFetch {
+    /// The picture widget to update once the cover is fetched.
+    picture: Picture,
+    /// The entity id (artist or playlist) whose cover is fetched.
+    id: String,
+    /// Whether the id refers to an artist (vs. a playlist).
+    is_artist: bool,
+}
+
 /// Category of a search result for section grouping.
 #[derive(Clone, Copy, Debug, PartialEq)]
 enum SearchCategory {
@@ -110,21 +121,17 @@ struct SearchCtx {
     /// Results list box.
     list_box: ListBox,
     /// Search result items vector.
-    items: Rc<RefCell<Vec<SearchResultItem>>>,
+    items: Arc<Mutex<Vec<SearchResultItem>>>,
     /// Cover art texture cache.
     cover_art_cache: CoverArtCache,
     /// Channel sender for loaded cover art textures.
     texture_sender: Sender<(String, Option<Texture>)>,
-    /// Picture widgets registered per cover URL for texture updates.
-    picture_map: Rc<RefCell<HashMap<String, Vec<Picture>>>>,
-    /// Picture widgets registered per artist ID for async image loading.
-    artist_picture_map: Rc<RefCell<HashMap<i32, Picture>>>,
-    /// Picture widgets registered per playlist ID for async image loading.
-    playlist_picture_map: Rc<RefCell<HashMap<String, Picture>>>,
+    /// Channel sender for cover-art load/registration events.
+    texture_register: Sender<TextureEvent>,
     /// Toast overlay for search feedback.
     toast_overlay: ToastOverlay,
     /// Whether a search is currently in progress.
-    is_loading: Rc<RefCell<bool>>,
+    is_loading: Arc<AtomicBool>,
     /// User settings for default quality and output directory.
     settings: Arc<Mutex<AppSettings>>,
     /// Channel sender for download commands.
@@ -132,7 +139,7 @@ struct SearchCtx {
     /// Shared API client for fetching artist/playlist details.
     api_service: Arc<Mutex<QobuzApiService>>,
     /// Current search scope.
-    scope: Rc<RefCell<SearchScope>>,
+    scope: Arc<Mutex<SearchScope>>,
     /// Scope selector dropdown for category navigation.
     scope_selector: DropDown,
 }
@@ -216,7 +223,7 @@ pub struct SearchWidgets {
     /// Scope selector dropdown for category navigation.
     scope_selector: DropDown,
     /// Current search scope.
-    scope: Rc<RefCell<SearchScope>>,
+    scope: Arc<Mutex<SearchScope>>,
     /// Header bar for custom back button.
     header_bar: HeaderBar,
 }
@@ -227,7 +234,7 @@ impl SearchWidgets {
         let key_controller = EventControllerKey::new();
         let nav_view = navigation_view.clone();
         let scope_selector = self.scope_selector.clone();
-        let scope = Rc::clone(&self.scope);
+        let scope = Arc::clone(&self.scope);
 
         key_controller.set_propagation_phase(Capture);
         key_controller.connect_key_pressed(move |_, key, _, _| {
@@ -242,7 +249,7 @@ impl SearchWidgets {
             .build();
 
         let nav_view_clone = navigation_view.clone();
-        let back_scope = Rc::clone(&self.scope);
+        let back_scope = Arc::clone(&self.scope);
         let back_selector = self.scope_selector.clone();
         back_button.connect_clicked(move |_| {
             handle_back_clicked(&back_scope, &nav_view_clone, &back_selector);
@@ -252,17 +259,35 @@ impl SearchWidgets {
     }
 }
 
+/// Cover art load and registration events for the texture receiver.
+enum TextureEvent {
+    /// A picture widget registered itself for a cover URL.
+    Register {
+        /// The cover URL.
+        url: String,
+        /// The picture widget awaiting the cover.
+        picture: Picture,
+    },
+    /// A cover art texture finished loading for a URL.
+    Loaded {
+        /// The cover URL.
+        url: String,
+        /// The loaded texture, if any.
+        texture: Option<Texture>,
+    },
+}
+
 /// Handles ESC key press to pop the navigation view or reset the search scope.
 fn handle_key_pressed(
     key: Key,
-    scope: &RefCell<SearchScope>,
+    scope: &Arc<Mutex<SearchScope>>,
     nav_view: &NavigationView,
     scope_selector: &DropDown,
 ) -> Propagation {
     if key != Key::Escape {
         return Proceed;
     }
-    if *scope.borrow() == All {
+    if *scope.lock() == All {
         nav_view.pop();
         return Stop;
     }
@@ -272,11 +297,11 @@ fn handle_key_pressed(
 
 /// Handles back button click to pop the navigation view or reset the search scope.
 fn handle_back_clicked(
-    scope: &RefCell<SearchScope>,
+    scope: &Arc<Mutex<SearchScope>>,
     nav_view: &NavigationView,
     scope_selector: &DropDown,
 ) {
-    if *scope.borrow() == All {
+    if *scope.lock() == All {
         nav_view.pop();
         return;
     }
@@ -352,19 +377,19 @@ fn build_search_scaffold(
 /// Sets up double-click gesture handler to browse detail views.
 fn setup_results_activation(
     list_box: &ListBox,
-    items: &Rc<RefCell<Vec<SearchResultItem>>>,
+    items: &Arc<Mutex<Vec<SearchResultItem>>>,
     api_service: &Arc<Mutex<QobuzApiService>>,
     browse_sender: Sender<BrowseEvent>,
     toast_overlay: &ToastOverlay,
 ) {
     let list_box_owned = list_box.clone();
-    let items_for_gesture = Rc::clone(items);
+    let items_for_gesture = Arc::clone(items);
     let api_for_gesture = Arc::clone(api_service);
     let sender_for_gesture = browse_sender.clone();
     let toast_for_gesture = toast_overlay.clone();
     let gesture = GestureClick::new();
     gesture.set_button(1);
-    let last_nav_ms: Rc<Cell<u64>> = Rc::new(Cell::new(0));
+    let last_nav_ms: Arc<AtomicU64> = Arc::new(AtomicU64::new(0));
     gesture.connect_pressed(move |_, n_press, _x, y| {
         if n_press != 2 {
             return;
@@ -377,7 +402,7 @@ fn setup_results_activation(
             return;
         };
         let position = row.index().unsigned_abs();
-        let items_ref = items_for_gesture.borrow();
+        let items_ref = items_for_gesture.lock();
         let target = find_item_at_position(&items_ref, position);
         drop(items_ref);
         let Some(target) = target else {
@@ -407,7 +432,7 @@ fn setup_results_activation(
     list_box.add_controller(gesture);
 
     let list_box_for_key = list_box.clone();
-    let items_for_key = Rc::clone(items);
+    let items_for_key = Arc::clone(items);
     let api_for_key = Arc::clone(api_service);
     let browse_for_key = browse_sender;
     let toast_for_key = toast_overlay.clone();
@@ -421,7 +446,7 @@ fn setup_results_activation(
             return Proceed;
         };
         let position = row.index().unsigned_abs();
-        let items_ref = items_for_key.borrow();
+        let items_ref = items_for_key.lock();
         let target = find_item_at_position(&items_ref, position);
         drop(items_ref);
         let Some(target) = target else {
@@ -458,7 +483,7 @@ fn setup_scope_selector(
     controller: &SearchController,
     search_entry: &SearchEntry,
     search_sender: Sender<SearchEvent>,
-    scope: Rc<RefCell<SearchScope>>,
+    scope: Arc<Mutex<SearchScope>>,
     settings: Arc<Mutex<AppSettings>>,
 ) {
     let scope_controller = controller.clone();
@@ -467,7 +492,7 @@ fn setup_scope_selector(
     scope_selector.connect_selected_item_notify(move |widget| {
         let idx = widget.selected();
         let new_scope = SearchScope::from_u32(idx);
-        *scope.borrow_mut() = new_scope;
+        *scope.lock() = new_scope;
 
         let mut s = settings.lock();
         s.search_scope = idx;
@@ -503,36 +528,37 @@ pub fn build(
         build_search_scaffold(saved_scope);
 
     let (texture_sender, texture_receiver) = unbounded::<(String, Option<Texture>)>();
-    let picture_map: Rc<RefCell<HashMap<String, Vec<Picture>>>> =
-        Rc::new(RefCell::new(HashMap::new()));
-    let artist_picture_map: Rc<RefCell<HashMap<i32, Picture>>> =
-        Rc::new(RefCell::new(HashMap::new()));
-    let playlist_picture_map: Rc<RefCell<HashMap<String, Picture>>> =
-        Rc::new(RefCell::new(HashMap::new()));
-    setup_texture_receiver(texture_receiver, Rc::clone(&picture_map));
+    let (texture_register, texture_event_receiver) = unbounded::<TextureEvent>();
+    let texture_forward = texture_register.clone();
+    MainContext::default().spawn_local(async move {
+        while let Ok((url, texture)) = texture_receiver.recv().await {
+            let _ = texture_forward
+                .send(TextureEvent::Loaded { url, texture })
+                .await;
+        }
+    });
+    setup_texture_receiver(texture_event_receiver);
 
-    let items: Rc<RefCell<Vec<SearchResultItem>>> = Rc::new(RefCell::new(Vec::new()));
-    let is_loading: Rc<RefCell<bool>> = Rc::new(RefCell::new(false));
+    let items: Arc<Mutex<Vec<SearchResultItem>>> = Arc::new(Mutex::new(Vec::new()));
+    let is_loading: Arc<AtomicBool> = Arc::new(AtomicBool::new(false));
     let cover_art_cache = state.cover_art_cache.clone();
 
-    let scope: Rc<RefCell<SearchScope>> = Rc::new(RefCell::new(SearchScope::from_u32(saved_scope)));
+    let scope: Arc<Mutex<SearchScope>> = Arc::new(Mutex::new(SearchScope::from_u32(saved_scope)));
 
     let list_box_for_activation = list_box.clone();
 
     let ctx = SearchCtx {
         list_box,
-        items: Rc::clone(&items),
+        items: Arc::clone(&items),
         cover_art_cache,
         texture_sender,
-        picture_map: Rc::clone(&picture_map),
-        artist_picture_map: Rc::clone(&artist_picture_map),
-        playlist_picture_map: Rc::clone(&playlist_picture_map),
+        texture_register,
         toast_overlay: toast_overlay.clone(),
-        is_loading: Rc::clone(&is_loading),
+        is_loading: Arc::clone(&is_loading),
         settings: Arc::clone(&state.settings),
         cmd_sender,
         api_service: Arc::clone(&state.api_service),
-        scope: Rc::clone(&scope),
+        scope: Arc::clone(&scope),
         scope_selector: scope_selector.clone(),
     };
 
@@ -553,7 +579,7 @@ pub fn build(
         browse_sender,
         &toast_overlay,
     );
-    let sw_scope = Rc::clone(&scope);
+    let sw_scope = Arc::clone(&scope);
 
     setup_scope_selector(
         &scope_selector,
@@ -628,22 +654,22 @@ fn connect_search_entry(
     entry: &SearchEntry,
     controller: &SearchController,
     sender: Sender<SearchEvent>,
-    is_loading: &Rc<RefCell<bool>>,
+    is_loading: &Arc<AtomicBool>,
     toast_overlay: &ToastOverlay,
-    scope: &Rc<RefCell<SearchScope>>,
+    scope: &Arc<Mutex<SearchScope>>,
 ) {
     let controller_search_started = controller.clone();
     let sender_clone = sender.clone();
-    let is_loading_clone = Rc::clone(is_loading);
+    let is_loading_clone = Arc::clone(is_loading);
     let toast_overlay_clone = toast_overlay.clone();
-    let scope_clone = Rc::clone(scope);
+    let scope_clone = Arc::clone(scope);
 
     entry.connect_search_started(move |entry| {
         let query = entry.text().to_string();
         if query.trim().is_empty() {
             return;
         }
-        let s = *scope_clone.borrow();
+        let s = *scope_clone.lock();
         trigger_search(
             &controller_search_started,
             &query,
@@ -655,16 +681,16 @@ fn connect_search_entry(
     });
 
     let controller_activate = controller.clone();
-    let is_loading_activate = Rc::clone(is_loading);
+    let is_loading_activate = Arc::clone(is_loading);
     let toast_overlay_activate = toast_overlay.clone();
-    let scope_activate = Rc::clone(scope);
+    let scope_activate = Arc::clone(scope);
 
     entry.connect_activate(move |entry| {
         let query = entry.text().to_string();
         if query.trim().is_empty() {
             return;
         }
-        let s = *scope_activate.borrow();
+        let s = *scope_activate.lock();
         trigger_search(
             &controller_activate,
             &query,
@@ -677,7 +703,13 @@ fn connect_search_entry(
 }
 
 /// Creates a data row for a search result item.
-fn create_data_row(item: &SearchResultItem, ctx: &SearchCtx) -> ListBoxRow {
+///
+/// Returns the row and, for artist/playlist items lacking cover art, the info needed
+/// to fetch and apply their cover asynchronously.
+fn create_data_row(
+    item: &SearchResultItem,
+    ctx: &SearchCtx,
+) -> (ListBoxRow, Option<AsyncCoverFetch>) {
     let picture = Picture::new();
     picture.set_size_request(64, 64);
     picture.add_css_class("thumbnail");
@@ -697,22 +729,28 @@ fn create_data_row(item: &SearchResultItem, ctx: &SearchCtx) -> ListBoxRow {
 
     attach_cover_art(item, &picture, ctx);
 
-    match item {
-        SearchResultItem::Artist { id, .. } => {
-            ctx.artist_picture_map.borrow_mut().insert(*id, picture);
+    let pending_fetch = match item {
+        SearchResultItem::Artist { id, cover_url, .. } if cover_url.is_none() => {
+            Some(AsyncCoverFetch {
+                picture,
+                id: id.to_string(),
+                is_artist: true,
+            })
         }
-        SearchResultItem::Playlist { id, .. } => {
-            ctx.playlist_picture_map
-                .borrow_mut()
-                .insert(id.clone(), picture);
+        SearchResultItem::Playlist { id, cover_url, .. } if cover_url.is_none() => {
+            Some(AsyncCoverFetch {
+                picture,
+                id: id.clone(),
+                is_artist: false,
+            })
         }
-        _ => {}
-    }
+        _ => None,
+    };
 
     let row = ListBoxRow::new();
     row.set_child(Some(&row_box));
 
-    row
+    (row, pending_fetch)
 }
 
 /// Attaches cover art texture to the picture widget.
@@ -728,11 +766,10 @@ fn attach_cover_art(item: &SearchResultItem, picture: &Picture, ctx: &SearchCtx)
         if let Some(texture) = ctx.cover_art_cache.get(&url) {
             picture.set_paintable(Some(&texture));
         } else {
-            ctx.picture_map
-                .borrow_mut()
-                .entry(url.clone())
-                .or_default()
-                .push(picture.clone());
+            let _ = ctx.texture_register.send_blocking(TextureEvent::Register {
+                url: url.clone(),
+                picture: picture.clone(),
+            });
             ctx.cover_art_cache
                 .start_load(url, ctx.texture_sender.clone());
         }
@@ -987,7 +1024,7 @@ fn format_duration(seconds: i32) -> String {
 /// Handles a search event by updating the list box or showing an error toast.
 fn handle_search_event(event: SearchEvent, ctx: &SearchCtx) {
     ctx.toast_overlay.dismiss_all();
-    *ctx.is_loading.borrow_mut() = false;
+    ctx.is_loading.store(false, Relaxed);
 
     match event {
         Results { result, query } => {
@@ -1004,15 +1041,9 @@ fn handle_search_event(event: SearchEvent, ctx: &SearchCtx) {
     }
 }
 
-/// Updates picture widgets for a newly loaded texture.
-fn handle_texture(
-    url: &str,
-    texture: Option<Texture>,
-    picture_map: &Rc<RefCell<HashMap<String, Vec<Picture>>>>,
-) {
+/// Applies a newly loaded texture to every picture registered for its URL.
+fn handle_texture(_url: &str, texture: Option<Texture>, pictures: &[Picture]) {
     let Some(texture) = texture else { return };
-    let map = picture_map.borrow();
-    let Some(pictures) = map.get(url) else { return };
     for picture in pictures {
         picture.set_paintable(Some(&texture));
     }
@@ -1021,7 +1052,7 @@ fn handle_texture(
 /// Adds album items to the item vector.
 fn populate_album_items(
     result: &SearchResult,
-    items: &Rc<RefCell<Vec<SearchResultItem>>>,
+    items: &Arc<Mutex<Vec<SearchResultItem>>>,
     limit_to_five: bool,
 ) {
     let Some(albums) = &result.albums else { return };
@@ -1051,7 +1082,7 @@ fn populate_album_items(
             .unwrap_or("")
             .to_string();
         let is_explicit = false;
-        items.borrow_mut().push(SearchResultItem::Album {
+        items.lock().push(SearchResultItem::Album {
             id,
             title: title.to_string(),
             artist: artist.to_string(),
@@ -1069,7 +1100,7 @@ fn populate_album_items(
 /// Adds artist items to the item vector.
 fn populate_artist_items(
     result: &SearchResult,
-    items: &Rc<RefCell<Vec<SearchResultItem>>>,
+    items: &Arc<Mutex<Vec<SearchResultItem>>>,
     limit_to_five: bool,
 ) {
     let Some(artists) = &result.artists else {
@@ -1085,7 +1116,7 @@ fn populate_artist_items(
         let Some(id) = artist.id else { continue };
         let name = artist.name.as_deref().unwrap_or("Unknown Artist");
         let cover_url = resolve_thumbnail_url(artist.image.as_ref());
-        items.borrow_mut().push(SearchResultItem::Artist {
+        items.lock().push(SearchResultItem::Artist {
             id,
             name: name.to_string(),
             cover_url,
@@ -1096,7 +1127,7 @@ fn populate_artist_items(
 /// Adds playlist items to the item vector.
 fn populate_playlist_items(
     result: &SearchResult,
-    items: &Rc<RefCell<Vec<SearchResultItem>>>,
+    items: &Arc<Mutex<Vec<SearchResultItem>>>,
     limit_to_five: bool,
 ) {
     let Some(playlists) = &result.playlists else {
@@ -1113,7 +1144,7 @@ fn populate_playlist_items(
         let name = playlist.name.as_deref().unwrap_or("Unknown Playlist");
         let cover_url = playlist.best_image_url(false);
         let is_explicit = false;
-        items.borrow_mut().push(SearchResultItem::Playlist {
+        items.lock().push(SearchResultItem::Playlist {
             id,
             name: name.to_string(),
             cover_url,
@@ -1122,92 +1153,121 @@ fn populate_playlist_items(
     }
 }
 
-/// Fetches missing artist/playlist images asynchronously.
-fn fetch_missing_images(ctx: &SearchCtx) {
-    let items = ctx.items.borrow();
+/// Fetches the cover URL for an artist or playlist id.
+fn fetch_cover_url(
+    api_service: &Arc<Mutex<QobuzApiService>>,
+    id: &str,
+    is_artist: bool,
+) -> Option<String> {
+    if is_artist {
+        fetch_artist_cover_url(api_service, id)
+    } else {
+        fetch_playlist_cover_url(api_service, id)
+    }
+}
 
-    let items_to_fetch: Vec<(String, bool)> = items
-        .iter()
-        .filter_map(|item| match item {
-            SearchResultItem::Artist { id, cover_url, .. } if cover_url.is_none() => {
-                Some((id.to_string(), true))
-            }
-            SearchResultItem::Playlist { id, cover_url, .. } if cover_url.is_none() => {
-                Some((id.clone(), false))
-            }
-            _ => None,
-        })
-        .collect();
+/// Fetches a cover URL and sends it (with its index) via the channel.
+fn send_fetched_url(
+    tx: &Sender<(usize, Option<String>)>,
+    api_service: &Arc<Mutex<QobuzApiService>>,
+    idx: usize,
+    id: String,
+    is_artist: bool,
+) {
+    let url = fetch_cover_url(api_service, &id, is_artist);
+    if tx.send_blocking((idx, url)).is_err() {
+        warn!(id = %id, "Failed to send cover URL to channel");
+    }
+}
 
-    if items_to_fetch.is_empty() {
+/// Fetches missing artist/playlist cover art asynchronously and applies it to the
+/// associated picture widget.
+///
+/// The worker thread only fetches cover URLs; the picture widgets themselves remain
+/// owned by the main-thread receiver, since GTK widgets are not thread-safe.
+///
+/// # Arguments
+///
+/// * `pending` - Picture widgets (with their entity id and kind) whose cover art still needs to be
+///   fetched
+/// * `ctx` - Shared search context
+fn fetch_missing_images(pending: Vec<AsyncCoverFetch>, ctx: &SearchCtx) {
+    if pending.is_empty() {
         return;
     }
 
     let api_service = Arc::clone(&ctx.api_service);
-    let texture_sender = ctx.texture_sender.clone();
-    let picture_map = Rc::clone(&ctx.picture_map);
     let cover_art_cache = ctx.cover_art_cache.clone();
-    let artist_picture_map = Rc::clone(&ctx.artist_picture_map);
-    let playlist_picture_map = Rc::clone(&ctx.playlist_picture_map);
+    let texture_sender = ctx.texture_sender.clone();
+    let texture_register = ctx.texture_register.clone();
 
-    let (tx, rx) = unbounded::<(String, Option<String>, bool)>();
+    let fetch_requests: Vec<(String, bool)> = pending
+        .iter()
+        .map(|f| (f.id.clone(), f.is_artist))
+        .collect();
+
+    let (tx, rx) = unbounded::<(usize, Option<String>)>();
 
     spawn(move || {
-        for (id, is_artist) in items_to_fetch {
-            send_cover_url(&tx, &api_service, &id, is_artist);
+        for (idx, (id, is_artist)) in fetch_requests.into_iter().enumerate() {
+            send_fetched_url(&tx, &api_service, idx, id, is_artist);
         }
     });
 
     MainContext::default().spawn_local(async move {
-        while let Ok(msg) = rx.recv().await {
-            process_picture_update(
-                msg,
-                &artist_picture_map,
-                &playlist_picture_map,
+        while let Ok((idx, url)) = rx.recv().await {
+            apply_cover_fetch(
+                idx,
+                url,
+                &pending,
                 &cover_art_cache,
-                &picture_map,
                 &texture_sender,
+                &texture_register,
             );
         }
     });
 }
 
-/// Processes picture update message from channel.
-fn process_picture_update(
-    (id, url, is_artist): (String, Option<String>, bool),
-    artist_picture_map: &Rc<RefCell<HashMap<i32, Picture>>>,
-    playlist_picture_map: &Rc<RefCell<HashMap<String, Picture>>>,
+/// Applies a fetched cover result for the given index to its picture widget.
+fn apply_cover_fetch(
+    idx: usize,
+    url: Option<String>,
+    pending: &[AsyncCoverFetch],
     cover_art_cache: &CoverArtCache,
-    picture_map: &Rc<RefCell<HashMap<String, Vec<Picture>>>>,
     texture_sender: &Sender<(String, Option<Texture>)>,
+    texture_register: &Sender<TextureEvent>,
 ) {
-    if let Some(picture) = find_picture(&id, is_artist, artist_picture_map, playlist_picture_map) {
-        if let Some(url) = url {
-            update_picture_with_cover(picture, url, cover_art_cache, picture_map, texture_sender);
-        } else {
-            set_fallback_icon(&picture, is_artist);
-        }
-    }
+    let Some(fetch) = pending.get(idx) else {
+        return;
+    };
+    apply_fetched_cover(
+        fetch,
+        url,
+        cover_art_cache,
+        texture_sender,
+        texture_register,
+    );
 }
 
-/// Finds picture widget for given ID.
-fn find_picture(
-    id: &str,
-    is_artist: bool,
-    artist_picture_map: &Rc<RefCell<HashMap<i32, Picture>>>,
-    playlist_picture_map: &Rc<RefCell<HashMap<String, Picture>>>,
-) -> Option<Picture> {
-    if is_artist {
-        let artist_id = match id.parse::<i32>() {
-            Ok(id) => id,
-            Err(e) => {
-                warn!(error = %e, id = %id, "Failed to parse artist ID in find_picture");
-                return None;
-            }
-        };
-        artist_picture_map.borrow().get(&artist_id).cloned()
+/// Applies a fetched cover URL to the matching picture widget.
+fn apply_fetched_cover(
+    fetch: &AsyncCoverFetch,
+    url: Option<String>,
+    cover_art_cache: &CoverArtCache,
+    texture_sender: &Sender<(String, Option<Texture>)>,
+    texture_register: &Sender<TextureEvent>,
+) {
+    let picture = fetch.picture.clone();
+    if let Some(url) = url {
+        update_picture_with_cover(
+            picture,
+            url,
+            cover_art_cache,
+            texture_sender,
+            texture_register,
+        );
     } else {
-        playlist_picture_map.borrow().get(id).cloned()
+        set_fallback_icon(&picture, fetch.is_artist);
     }
 }
 
@@ -1236,39 +1296,17 @@ fn update_picture_with_cover(
     picture: Picture,
     url: String,
     cover_art_cache: &CoverArtCache,
-    picture_map: &Rc<RefCell<HashMap<String, Vec<Picture>>>>,
     texture_sender: &Sender<(String, Option<Texture>)>,
+    texture_register: &Sender<TextureEvent>,
 ) {
     if let Some(texture) = cover_art_cache.get(&url) {
         picture.set_paintable(Some(&texture));
     } else {
-        picture_map
-            .borrow_mut()
-            .entry(url.clone())
-            .or_default()
-            .push(picture);
+        let _ = texture_register.send_blocking(TextureEvent::Register {
+            url: url.clone(),
+            picture,
+        });
         cover_art_cache.start_load(url, texture_sender.clone());
-    }
-}
-
-/// Sends cover URL to channel if fetched successfully.
-fn send_cover_url(
-    tx: &Sender<(String, Option<String>, bool)>,
-    api_service: &Arc<Mutex<QobuzApiService>>,
-    id: &str,
-    is_artist: bool,
-) {
-    let url = if is_artist {
-        fetch_artist_cover_url(api_service, id)
-    } else {
-        fetch_playlist_cover_url(api_service, id)
-    };
-
-    if tx
-        .send_blocking((id.to_string(), url.clone(), is_artist))
-        .is_err()
-    {
-        warn!(id = %id, url = ?url, "Failed to send cover URL to channel");
     }
 }
 
@@ -1332,25 +1370,24 @@ fn populate_results(ctx: &SearchCtx, result: &SearchResult, query: &str) {
     while let Some(child) = ctx.list_box.first_child() {
         ctx.list_box.remove(&child);
     }
-    ctx.items.borrow_mut().clear();
-    ctx.artist_picture_map.borrow_mut().clear();
-    ctx.playlist_picture_map.borrow_mut().clear();
+    ctx.items.lock().clear();
 
-    let is_all = matches!(*ctx.scope.borrow(), SearchScope::All);
+    let is_all = matches!(*ctx.scope.lock(), SearchScope::All);
 
     populate_track_items(result, &ctx.items, is_all);
     populate_album_items(result, &ctx.items, is_all);
     populate_artist_items(result, &ctx.items, is_all);
     populate_playlist_items(result, &ctx.items, is_all);
 
-    let items_empty = ctx.items.borrow().is_empty();
+    let items_empty = ctx.items.lock().is_empty();
     if items_empty {
         show_empty_search_state(&ctx.list_box, query);
         return;
     }
 
-    let items_ref = ctx.items.borrow();
+    let items_ref = ctx.items.lock();
     let mut current_category = None;
+    let mut pending_fetches = Vec::new();
 
     for item in items_ref.iter() {
         let category = item_category(item);
@@ -1362,11 +1399,15 @@ fn populate_results(ctx: &SearchCtx, result: &SearchResult, query: &str) {
             ctx.list_box.append(&create_section_header(category, ctx));
         }
 
-        let row = create_data_row(item, ctx);
+        let (row, pending) = create_data_row(item, ctx);
         ctx.list_box.append(&row);
+        if let Some(pending) = pending {
+            pending_fetches.push(pending);
+        }
     }
+    drop(items_ref);
 
-    fetch_missing_images(ctx);
+    fetch_missing_images(pending_fetches, ctx);
 }
 
 /// Returns the search category for an item.
@@ -1382,7 +1423,7 @@ fn item_category(item: &SearchResultItem) -> SearchCategory {
 /// Adds track items to the item vector.
 fn populate_track_items(
     result: &SearchResult,
-    items: &Rc<RefCell<Vec<SearchResultItem>>>,
+    items: &Arc<Mutex<Vec<SearchResultItem>>>,
     limit_to_five: bool,
 ) {
     let Some(tracks) = &result.tracks else { return };
@@ -1420,7 +1461,7 @@ fn populate_track_items(
             .or(track.maximum_sampling_rate)
             .unwrap_or(0.0);
         let is_explicit = track.parental_warning.unwrap_or(false);
-        items.borrow_mut().push(SearchResultItem::Track {
+        items.lock().push(SearchResultItem::Track {
             id,
             title: title.to_string(),
             artist: artist.to_string(),
@@ -1482,15 +1523,30 @@ fn setup_search_receiver(receiver: Receiver<SearchEvent>, ctx: SearchCtx) {
 }
 
 /// Sets up the cover art texture receiver to update pictures when textures load.
-fn setup_texture_receiver(
-    receiver: Receiver<(String, Option<Texture>)>,
-    picture_map: Rc<RefCell<HashMap<String, Vec<Picture>>>>,
-) {
+///
+/// The receiver owns the URL-to-picture registry on the main thread, since GTK
+/// widgets are not thread-safe.
+fn setup_texture_receiver(receiver: Receiver<TextureEvent>) {
     MainContext::default().spawn_local(async move {
-        while let Ok((url, texture)) = receiver.recv().await {
-            handle_texture(&url, texture, &picture_map);
+        let mut registry = HashMap::<String, Vec<Picture>>::new();
+        while let Ok(event) = receiver.recv().await {
+            apply_texture_event(event, &mut registry);
         }
     });
+}
+
+/// Applies a cover art load/registration event to the picture registry.
+fn apply_texture_event(event: TextureEvent, registry: &mut HashMap<String, Vec<Picture>>) {
+    match event {
+        TextureEvent::Register { url, picture } => {
+            registry.entry(url).or_default().push(picture);
+        }
+        TextureEvent::Loaded { url, texture } => {
+            if let Some(pictures) = registry.remove(&url) {
+                handle_texture(&url, texture, &pictures);
+            }
+        }
+    }
 }
 
 /// Triggers a scoped search with loading toast feedback.
@@ -1498,14 +1554,14 @@ fn trigger_search(
     controller: &SearchController,
     query: &str,
     sender: &Sender<SearchEvent>,
-    is_loading: &Rc<RefCell<bool>>,
+    is_loading: &Arc<AtomicBool>,
     toast_overlay: &ToastOverlay,
     scope: SearchScope,
 ) {
-    if *is_loading.borrow() {
+    if is_loading.load(Relaxed) {
         return;
     }
-    *is_loading.borrow_mut() = true;
+    is_loading.store(true, Relaxed);
 
     let toast = Toast::new("Searching...");
     toast.set_timeout(0);

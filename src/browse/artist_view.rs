@@ -1,6 +1,6 @@
 //! Artist detail view UI.
 
-use std::{cell::Cell, rc::Rc, sync::Arc};
+use std::sync::{Arc, atomic::AtomicU64};
 
 use {
     async_channel::Sender,
@@ -208,7 +208,7 @@ fn attach_album_nav_handler(
     let sender = browse_sender.clone();
     let id = album_id;
     let overlay = toast_overlay.clone();
-    let last_nav_ms: Rc<Cell<u64>> = Rc::new(Cell::new(0));
+    let last_nav_ms: Arc<AtomicU64> = Arc::new(AtomicU64::new(0));
     gesture.connect_pressed(move |_, _, _, _| {
         if !debounce_elapsed(&last_nav_ms, 500) {
             return;
