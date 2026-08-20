@@ -7,7 +7,7 @@ use {
     tokio::runtime::Runtime,
 };
 
-use crate::errors::AppError::{self, Download};
+use crate::errors::AppError::{self, Download, Keyring as KeyringError};
 
 /// Keyring attribute key-value pairs for application identification.
 const KEYRING_ATTRIBUTES: [(&str, &str); 1] = [("application", "qobuz-downloader")];
@@ -52,11 +52,14 @@ fn create_runtime() -> Result<Runtime, AppError> {
 pub fn store(creds: &StoredCredentials) -> Result<(), AppError> {
     let rt = create_runtime()?;
     rt.block_on(async {
-        let keyring = Keyring::new().await?;
+        let keyring = Keyring::new()
+            .await
+            .map_err(|e| KeyringError(Box::new(e)))?;
         let secret = to_vec(creds)?;
         keyring
             .create_item(KEYRING_LABEL, &KEYRING_ATTRIBUTES, secret, true)
-            .await?;
+            .await
+            .map_err(|e| KeyringError(Box::new(e)))?;
         Ok(())
     })
 }
@@ -73,12 +76,17 @@ pub fn store(creds: &StoredCredentials) -> Result<(), AppError> {
 pub fn load() -> Result<Option<StoredCredentials>, AppError> {
     let rt = create_runtime()?;
     rt.block_on(async {
-        let keyring = Keyring::new().await?;
-        let items = keyring.search_items(&KEYRING_ATTRIBUTES).await?;
+        let keyring = Keyring::new()
+            .await
+            .map_err(|e| KeyringError(Box::new(e)))?;
+        let items = keyring
+            .search_items(&KEYRING_ATTRIBUTES)
+            .await
+            .map_err(|e| KeyringError(Box::new(e)))?;
         let Some(item) = items.into_iter().next() else {
             return Ok(None);
         };
-        let secret = item.secret().await?;
+        let secret = item.secret().await.map_err(|e| KeyringError(Box::new(e)))?;
         let creds: StoredCredentials = from_slice(&secret)?;
         Ok(Some(creds))
     })
@@ -92,8 +100,13 @@ pub fn load() -> Result<Option<StoredCredentials>, AppError> {
 pub fn delete() -> Result<(), AppError> {
     let rt = create_runtime()?;
     rt.block_on(async {
-        let keyring = Keyring::new().await?;
-        keyring.delete(&KEYRING_ATTRIBUTES).await?;
+        let keyring = Keyring::new()
+            .await
+            .map_err(|e| KeyringError(Box::new(e)))?;
+        keyring
+            .delete(&KEYRING_ATTRIBUTES)
+            .await
+            .map_err(|e| KeyringError(Box::new(e)))?;
         Ok(())
     })
 }

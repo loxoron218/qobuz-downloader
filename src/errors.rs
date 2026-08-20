@@ -15,7 +15,7 @@ pub enum AppError {
     Api(#[from] QobuzApiError),
     /// Keyring access error.
     #[error("Keyring error: {0}")]
-    Keyring(#[from] Oo7Error),
+    Keyring(Box<Oo7Error>),
     /// Settings file I/O error.
     #[error("Settings I/O error: {0}")]
     Settings(#[from] Error),
