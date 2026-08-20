@@ -2,7 +2,7 @@
 //!
 //! Contains a URL/ID entry for direct downloads, a quality selector, a download
 //! button, and an embedded download queue section matching the original
-//! `qobuz-downloader-rs` layout.
+//! `qobuz-downloader` layout.
 
 use std::{
     collections::HashMap,

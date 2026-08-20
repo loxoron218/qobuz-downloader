@@ -137,7 +137,7 @@ Persistent user preferences.
 | `window_width` | `i32` | `800` | Saved window width |
 | `window_height` | `i32` | `600` | Saved window height |
 
-Persistence: `$XDG_CONFIG_HOME/qobuz-downloader-rs/settings.json` via `serde_json`
+Persistence: `$XDG_CONFIG_HOME/qobuz-downloader/settings.json` via `serde_json`
 
 ### `StoredCredentials`
 
@@ -148,7 +148,7 @@ Keyring-stored credentials (not serialized to disk, only in keyring).
 | `email` | `String` | Qobuz account email |
 | `password` | `String` | Qobuz account password |
 
-Storage: GNOME Keyring via `oo7::Keyring`, attributes: `[("application", "qobuz-downloader-rs")]`
+Storage: GNOME Keyring via `oo7::Keyring`, attributes: `[("application", "qobuz-downloader")]`
 
 ## Error Types
 

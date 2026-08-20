@@ -37,7 +37,7 @@
 
 - [X] T003 Implement AppError enum (Api, Keyring, Settings, SettingsParse, Download, NotAuthenticated) with thiserror in src/errors.rs
 - [X] T004 [P] Implement Quality enum (Mp3_320, Flac16_44, Flac24_96, Flac24_192) with Display, From<Quality> for i32, TryFrom<i32> for Quality in src/types.rs (shared type used across search, browse, download, and preferences modules; initially created in src/download/progress.rs, subsequently relocated to src/types.rs to avoid reverse dependencies)
-- [X] T005 [P] Implement AppSettings struct with serde serialization, load/save to $XDG_CONFIG_HOME/qobuz-downloader-rs/settings.json in src/preferences/settings.rs
+- [X] T005 [P] Implement AppSettings struct with serde serialization, load/save to $XDG_CONFIG_HOME/qobuz-downloader/settings.json in src/preferences/settings.rs
 - [X] T006 Implement AppState struct with Arc<parking_lot::Mutex<QobuzApiService>>, settings, auth_state fields in src/app.rs
 - [X] T007 Set up GTK/Adwaita application initialization in src/main.rs: create AdwApplication, connect activate signal, build AppState, run application
 - [X] T008 Create main window shell in src/window.rs: AdwApplicationWindow with AdwNavigationView, AdwToolbarView with header bar, placeholder content area
@@ -54,7 +54,7 @@
 
 ### Implementation for User Story 3
 
-- [X] T009 [US3] Implement keyring credential store/load/delete using oo7 (attributes: [("application", "qobuz-downloader-rs")]) in src/auth/keyring.rs
+- [X] T009 [US3] Implement keyring credential store/load/delete using oo7 (attributes: [("application", "qobuz-downloader")]) in src/auth/keyring.rs
 - [X] T010 [P] [US3] Implement AuthState enum (Unauthenticated, Authenticating, Authenticated { user_id: String }, Expired) and AuthEvent enum (Authenticated, AuthenticationFailed, Reauthenticated, ReauthFailed) in src/auth/session.rs
 - [X] T011 [US3] Implement session management (login, logout, re-auth including token expiry handling via stored credentials) with gio::spawn_blocking for API calls and async_channel for AuthEvent in src/auth/session.rs
 - [X] T012 [US3] Implement login view UI in src/auth/login_view.rs: AdwToolbarView with AdwHeaderBar, email EntryRow, password PasswordEntryRow, submit Button with suggested-action CSS, error label, use async_channel to send AuthEvent

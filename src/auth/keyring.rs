@@ -10,7 +10,7 @@ use {
 use crate::errors::AppError::{self, Download};
 
 /// Keyring attribute key-value pairs for application identification.
-const KEYRING_ATTRIBUTES: [(&str, &str); 1] = [("application", "qobuz-downloader-rs")];
+const KEYRING_ATTRIBUTES: [(&str, &str); 1] = [("application", "qobuz-downloader")];
 
 /// Label for the keyring item storing Qobuz credentials.
 const KEYRING_LABEL: &str = "Qobuz Downloader Credentials";

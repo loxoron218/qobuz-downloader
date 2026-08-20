@@ -2,7 +2,7 @@
 //!
 //! Uses a `PreferencesGroup` + `Clamp` layout with a `Stack` switching between
 //! an empty `StatusPage` and a `ListView` with `SignalListItemFactory`.
-//! Matches the original `qobuz-downloader-rs` download page UX.
+//! Matches the original `qobuz-downloader` download page UX.
 
 use std::{
     collections::HashMap,

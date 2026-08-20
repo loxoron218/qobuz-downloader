@@ -44,7 +44,7 @@ impl Default for AppSettings {
 /// Returns the settings file path following XDG conventions.
 pub fn settings_path() -> PathBuf {
     user_config_dir()
-        .join("qobuz-downloader-rs")
+        .join("qobuz-downloader")
         .join("settings.json")
 }
 

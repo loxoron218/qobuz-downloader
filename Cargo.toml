@@ -1,6 +1,6 @@
 [package]
 edition = "2024"
-name = "qobuz-downloader-rs-refactor"
+name = "qobuz-downloader"
 version = "0.1.0"
 
 [dependencies]

@@ -40,7 +40,7 @@ cargo run
 
 ## Configuration
 
-Settings are stored at `$XDG_CONFIG_HOME/qobuz-downloader-rs/settings.json`:
+Settings are stored at `$XDG_CONFIG_HOME/qobuz-downloader/settings.json`:
 
 | Setting | Default | Description |
 |---------|---------|-------------|

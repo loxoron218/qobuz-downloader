@@ -100,7 +100,7 @@ DownloadView ──[cmd_tx]──→ DownloadManager
 
 **Decision**: XDG config directory with JSON file via `serde_json`.
 
-**Rationale**: AGENTS.md specifies XDG paths and `serde` + `serde_json`. A simple JSON file in `$XDG_CONFIG_HOME/qobuz-downloader-rs/settings.json` stores preferences. The settings struct is small (download dir, quality, window size) and doesn't warrant a database.
+**Rationale**: AGENTS.md specifies XDG paths and `serde` + `serde_json`. A simple JSON file in `$XDG_CONFIG_HOME/qobuz-downloader/settings.json` stores preferences. The settings struct is small (download dir, quality, window size) and doesn't warrant a database.
 
 **Settings schema**:
 ```rust
