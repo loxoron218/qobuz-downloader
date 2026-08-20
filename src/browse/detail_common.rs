@@ -323,6 +323,17 @@ pub fn resolve_image_url(img: Option<&ModelImage>) -> Option<String> {
         .or_else(|| img.url.clone())
 }
 
+/// Resolves the best available thumbnail URL from an optional image.
+///
+/// Prefers the small thumbnail sizes, falling back to the generic `url` field.
+pub fn resolve_thumbnail_url(img: Option<&ModelImage>) -> Option<String> {
+    let img = img?;
+    img.thumbnail
+        .clone()
+        .or_else(|| img.small.clone())
+        .or_else(|| img.url.clone())
+}
+
 /// Spawns the common fetch → decode → apply pipeline for cover art.
 fn spawn_cover_load(url: String, apply: impl FnOnce(gdk::Texture) + 'static) {
     let (tx, rx) = bounded::<Vec<u8>>(1);

@@ -58,6 +58,31 @@ pub struct QueueSection {
     pub group: PreferencesGroup,
 }
 
+/// Mutable shared state threaded through the download queue row lifecycle.
+struct RowContext {
+    /// Command sender for issuing download commands.
+    cmd_sender: Rc<Sender<DownloadCommand>>,
+    /// Shared task map for task status lookups and updates.
+    tasks: TaskMap,
+    /// List model backing the queue view.
+    model: ListStore,
+    /// Map of button pointer addresses to task IDs.
+    task_map: Arc<Mutex<HashMap<usize, u64>>>,
+}
+
+/// Shared map of active download tasks, keyed by task ID.
+pub type TaskMap = Arc<Mutex<HashMap<u64, DownloadTask>>>;
+
+/// Returns an owned copy of a row context for use in a `move` closure.
+fn clone_row_context(ctx: &RowContext) -> RowContext {
+    RowContext {
+        cmd_sender: Rc::clone(&ctx.cmd_sender),
+        tasks: Arc::clone(&ctx.tasks),
+        model: ctx.model.clone(),
+        task_map: Arc::clone(&ctx.task_map),
+    }
+}
+
 /// Runs the event-processing loop for download events.
 async fn run_event_loop(
     evt_receiver: Receiver<DownloadEvent>,
@@ -234,31 +259,22 @@ fn send_cancel_command(cmd_sender: &Rc<Sender<DownloadCommand>>, cmd: DownloadCo
 
 /// Wires the cancel button to send a `Cancel` command and update the UI immediately.
 /// The task ID is looked up from a shared map keyed by button pointer address.
-fn wire_cancel_button(
-    button: &Button,
-    cmd_sender: &Rc<Sender<DownloadCommand>>,
-    tasks: &Arc<Mutex<HashMap<u64, DownloadTask>>>,
-    model: &ListStore,
-    task_map: &Arc<Mutex<HashMap<usize, u64>>>,
-) {
-    let cmd_sender = Rc::clone(cmd_sender);
-    let tasks = Arc::clone(tasks);
-    let model = model.clone();
-    let task_map = Arc::clone(task_map);
+fn wire_cancel_button(button: &Button, ctx: &RowContext) {
+    let ctx = clone_row_context(ctx);
     let btn_key = button.as_ptr() as usize;
 
     button.connect_clicked(move |_| {
-        let Some(id) = task_map.lock().get(&btn_key).copied() else {
+        let Some(id) = ctx.task_map.lock().get(&btn_key).copied() else {
             return;
         };
-        send_cancel_command(&cmd_sender, Cancel { id });
-        mark_task_cancelled(&tasks, id);
-        refresh_model_item(&model, id, &tasks);
+        send_cancel_command(&ctx.cmd_sender, Cancel { id });
+        mark_task_cancelled(&ctx.tasks, id);
+        refresh_model_item(&ctx.model, id, &ctx.tasks);
     });
 }
 
 /// Marks a task as cancelled in the tasks map.
-fn mark_task_cancelled(tasks: &Arc<Mutex<HashMap<u64, DownloadTask>>>, id: u64) {
+fn mark_task_cancelled(tasks: &TaskMap, id: u64) {
     let mut map = tasks.lock();
     if let Some(t) = map.get_mut(&id) {
         t.status = Cancelled;
@@ -273,20 +289,21 @@ fn setup_download_queue_factory(
     model: &ListStore,
 ) -> SignalListItemFactory {
     let factory = SignalListItemFactory::new();
-    let tasks = Arc::clone(tasks);
-    let task_map: Arc<Mutex<HashMap<usize, u64>>> = Arc::new(Mutex::new(HashMap::new()));
+    let ctx = RowContext {
+        cmd_sender: Rc::clone(cmd_sender),
+        tasks: Arc::clone(tasks),
+        model: model.clone(),
+        task_map: Arc::new(Mutex::new(HashMap::new())),
+    };
     factory.connect_setup({
-        let cmd_sender = Rc::clone(cmd_sender);
-        let tasks = Arc::clone(&tasks);
-        let model = model.clone();
-        let task_map = Arc::clone(&task_map);
+        let ctx = clone_row_context(&ctx);
         move |_, list_item_obj| {
-            setup_download_row(list_item_obj, &cmd_sender, &tasks, &model, &task_map);
+            setup_download_row(list_item_obj, &ctx);
         }
     });
 
     factory.connect_bind({
-        let task_map = Arc::clone(&task_map);
+        let task_map = Arc::clone(&ctx.task_map);
         move |_, list_item_obj| {
             bind_download_row(list_item_obj, &task_map);
         }
@@ -296,13 +313,7 @@ fn setup_download_queue_factory(
 }
 
 /// Creates the widget structure for a single download queue row and registers it.
-fn setup_download_row(
-    list_item_obj: &Object,
-    cmd_sender: &Rc<Sender<DownloadCommand>>,
-    tasks: &Arc<Mutex<HashMap<u64, DownloadTask>>>,
-    model: &ListStore,
-    task_map: &Arc<Mutex<HashMap<usize, u64>>>,
-) {
+fn setup_download_row(list_item_obj: &Object, ctx: &RowContext) {
     let Some(list_item) = list_item_obj.downcast_ref::<ListItem>() else {
         return;
     };
@@ -370,7 +381,7 @@ fn setup_download_row(
     main_box.append(&progress_container);
     main_box.append(&action_container);
 
-    wire_cancel_button(&cancel_button, cmd_sender, tasks, model, task_map);
+    wire_cancel_button(&cancel_button, ctx);
 
     list_item.set_child(Some(&main_box));
 }

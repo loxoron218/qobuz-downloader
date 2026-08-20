@@ -27,6 +27,7 @@ use {
 
 use crate::{
     app::AppState,
+    browse::detail_common::resolve_thumbnail_url,
     download::{
         progress::{
             DownloadCommand::{self, Enqueue},
@@ -220,12 +221,7 @@ fn fetch_album_meta(api: &QobuzApiService, album_id: &str) -> Option<FetchedMeta
         .and_then(|a| a.name.as_deref())
         .unwrap_or("Unknown Artist")
         .to_string();
-    let cover_url = album.image.as_ref().and_then(|img| {
-        img.thumbnail
-            .clone()
-            .or_else(|| img.small.clone())
-            .or_else(|| img.url.clone())
-    });
+    let cover_url = resolve_thumbnail_url(album.image.as_ref());
     Some(FetchedMeta {
         title,
         artist,
@@ -253,13 +249,7 @@ fn fetch_track_meta(api: &QobuzApiService, track_id: i32) -> Option<FetchedMeta>
         .and_then(|a| a.name.as_deref())
         .unwrap_or("Unknown Artist")
         .to_string();
-    let cover_url = track.album.as_ref().and_then(|a| {
-        let img = a.image.as_ref()?;
-        img.thumbnail
-            .clone()
-            .or_else(|| img.small.clone())
-            .or_else(|| img.url.clone())
-    });
+    let cover_url = resolve_thumbnail_url(track.album.as_ref().and_then(|a| a.image.as_ref()));
     Some(FetchedMeta {
         title,
         artist,

@@ -7,7 +7,6 @@ use std::{
     rc::Rc,
     sync::Arc,
     thread::spawn,
-    time::{SystemTime, UNIX_EPOCH},
 };
 
 use {
@@ -46,7 +45,10 @@ use {
 
 use crate::{
     app::AppState,
-    browse::{BrowseEvent, browse_album, browse_artist, browse_playlist},
+    browse::{
+        BrowseEvent, browse_album, browse_artist, browse_playlist,
+        detail_common::resolve_thumbnail_url,
+    },
     cover_art::cache::CoverArtCache,
     download::progress::{DownloadCommand, DownloadItem, DownloadTask},
     preferences::settings::AppSettings,
@@ -55,6 +57,7 @@ use crate::{
         SearchEvent::{self, Error, Results},
         SearchScope::{self, All},
     },
+    ui::debounce_elapsed,
 };
 
 /// Target for double-click activation navigation.
@@ -366,14 +369,9 @@ fn setup_results_activation(
         if n_press != 2 {
             return;
         }
-        let dur = SystemTime::now()
-            .duration_since(UNIX_EPOCH)
-            .unwrap_or_default();
-        let now = dur.as_secs() * 1000 + u64::from(dur.subsec_millis());
-        if now - last_nav_ms.get() < 500 {
+        if !debounce_elapsed(&last_nav_ms, 500) {
             return;
         }
-        last_nav_ms.set(now);
         let row = list_box_owned.row_at_y(y.as_());
         let Some(row) = row else {
             return;
@@ -1041,12 +1039,7 @@ fn populate_album_items(
             .as_ref()
             .and_then(|a| a.name.as_deref())
             .unwrap_or("Unknown Artist");
-        let cover_url = album.image.as_ref().and_then(|img| {
-            img.thumbnail
-                .clone()
-                .or_else(|| img.small.clone())
-                .or_else(|| img.url.clone())
-        });
+        let cover_url = resolve_thumbnail_url(album.image.as_ref());
         let duration = album.duration.unwrap_or(0);
         let bit_depth = album.maximum_bit_depth.unwrap_or(0);
         let sampling_rate = album.maximum_sampling_rate.unwrap_or(0.0);
@@ -1091,12 +1084,7 @@ fn populate_artist_items(
         }
         let Some(id) = artist.id else { continue };
         let name = artist.name.as_deref().unwrap_or("Unknown Artist");
-        let cover_url = artist.image.as_ref().and_then(|img| {
-            img.thumbnail
-                .clone()
-                .or_else(|| img.small.clone())
-                .or_else(|| img.url.clone())
-        });
+        let cover_url = resolve_thumbnail_url(artist.image.as_ref());
         items.borrow_mut().push(SearchResultItem::Artist {
             id,
             name: name.to_string(),
@@ -1301,12 +1289,7 @@ fn fetch_artist_cover_url(api_service: &Arc<Mutex<QobuzApiService>>, id: &str) -
             return None;
         }
     };
-    let url = artist.image.as_ref().and_then(|img| {
-        img.thumbnail
-            .clone()
-            .or_else(|| img.small.clone())
-            .or_else(|| img.url.clone())
-    });
+    let url = resolve_thumbnail_url(artist.image.as_ref());
     let result = url;
     drop(api);
     result
@@ -1370,12 +1353,7 @@ fn populate_results(ctx: &SearchCtx, result: &SearchResult, query: &str) {
     let mut current_category = None;
 
     for item in items_ref.iter() {
-        let category = match item {
-            SearchResultItem::Track { .. } => SearchCategory::Tracks,
-            SearchResultItem::Album { .. } => SearchCategory::Albums,
-            SearchResultItem::Artist { .. } => SearchCategory::Artists,
-            SearchResultItem::Playlist { .. } => SearchCategory::Playlists,
-        };
+        let category = item_category(item);
 
         let needs_header = current_category != Some(category);
 
@@ -1389,6 +1367,16 @@ fn populate_results(ctx: &SearchCtx, result: &SearchResult, query: &str) {
     }
 
     fetch_missing_images(ctx);
+}
+
+/// Returns the search category for an item.
+fn item_category(item: &SearchResultItem) -> SearchCategory {
+    match item {
+        SearchResultItem::Track { .. } => SearchCategory::Tracks,
+        SearchResultItem::Album { .. } => SearchCategory::Albums,
+        SearchResultItem::Artist { .. } => SearchCategory::Artists,
+        SearchResultItem::Playlist { .. } => SearchCategory::Playlists,
+    }
 }
 
 /// Adds track items to the item vector.
@@ -1417,13 +1405,7 @@ fn populate_track_items(
             .as_ref()
             .and_then(|a| a.title.as_deref())
             .unwrap_or("Unknown Album");
-        let cover_url = track.album.as_ref().and_then(|a| {
-            let img = a.image.as_ref()?;
-            img.thumbnail
-                .clone()
-                .or_else(|| img.small.clone())
-                .or_else(|| img.url.clone())
-        });
+        let cover_url = resolve_thumbnail_url(track.album.as_ref().and_then(|a| a.image.as_ref()));
         let duration = track.duration.unwrap_or(0);
         let bit_depth = track
             .audio_info
@@ -1471,12 +1453,7 @@ fn find_item_at_position(items: &[SearchResultItem], row_index: u32) -> Option<A
     let mut pos = 0u32;
     let mut current_category: Option<SearchCategory> = None;
     for item in items {
-        let category = match item {
-            SearchResultItem::Track { .. } => SearchCategory::Tracks,
-            SearchResultItem::Album { .. } => SearchCategory::Albums,
-            SearchResultItem::Artist { .. } => SearchCategory::Artists,
-            SearchResultItem::Playlist { .. } => SearchCategory::Playlists,
-        };
+        let category = item_category(item);
         if current_category != Some(category) {
             current_category = Some(category);
             pos += 1;

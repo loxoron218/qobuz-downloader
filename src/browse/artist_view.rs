@@ -1,11 +1,6 @@
 //! Artist detail view UI.
 
-use std::{
-    cell::Cell,
-    rc::Rc,
-    sync::Arc,
-    time::{SystemTime, UNIX_EPOCH},
-};
+use std::{cell::Cell, rc::Rc, sync::Arc};
 
 use {
     async_channel::Sender,
@@ -37,6 +32,7 @@ use crate::{
     },
     download::progress::{DownloadCommand, DownloadItem::Artist as ItemArtist, DownloadTask},
     preferences::settings::AppSettings,
+    ui::debounce_elapsed,
 };
 
 /// Builds the artist detail view with albums from the artist catalog.
@@ -214,14 +210,9 @@ fn attach_album_nav_handler(
     let overlay = toast_overlay.clone();
     let last_nav_ms: Rc<Cell<u64>> = Rc::new(Cell::new(0));
     gesture.connect_pressed(move |_, _, _, _| {
-        let dur = SystemTime::now()
-            .duration_since(UNIX_EPOCH)
-            .unwrap_or_default();
-        let now = dur.as_secs() * 1000 + u64::from(dur.subsec_millis());
-        if now - last_nav_ms.get() < 500 {
+        if !debounce_elapsed(&last_nav_ms, 500) {
             return;
         }
-        last_nav_ms.set(now);
         let toast = Toast::new("Opening album…");
         toast.set_timeout(2);
         overlay.add_toast(toast);

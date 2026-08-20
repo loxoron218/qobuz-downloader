@@ -43,6 +43,15 @@ fn create_runtime() -> Result<Runtime, AppError> {
     Runtime::new().map_err(|e| Download(format!("Failed to create async runtime: {e}")))
 }
 
+/// Connects to the GNOME Keyring service.
+///
+/// # Errors
+///
+/// Returns `AppError::Keyring` if keyring access fails.
+async fn connect_keyring() -> Result<Keyring, AppError> {
+    Keyring::new().await.map_err(|e| KeyringError(Box::new(e)))
+}
+
 /// Stores credentials in GNOME Keyring, replacing any existing entry.
 ///
 /// # Errors
@@ -52,9 +61,7 @@ fn create_runtime() -> Result<Runtime, AppError> {
 pub fn store(creds: &StoredCredentials) -> Result<(), AppError> {
     let rt = create_runtime()?;
     rt.block_on(async {
-        let keyring = Keyring::new()
-            .await
-            .map_err(|e| KeyringError(Box::new(e)))?;
+        let keyring = connect_keyring().await?;
         let secret = to_vec(creds)?;
         keyring
             .create_item(KEYRING_LABEL, &KEYRING_ATTRIBUTES, secret, true)
@@ -76,9 +83,7 @@ pub fn store(creds: &StoredCredentials) -> Result<(), AppError> {
 pub fn load() -> Result<Option<StoredCredentials>, AppError> {
     let rt = create_runtime()?;
     rt.block_on(async {
-        let keyring = Keyring::new()
-            .await
-            .map_err(|e| KeyringError(Box::new(e)))?;
+        let keyring = connect_keyring().await?;
         let items = keyring
             .search_items(&KEYRING_ATTRIBUTES)
             .await
@@ -100,9 +105,7 @@ pub fn load() -> Result<Option<StoredCredentials>, AppError> {
 pub fn delete() -> Result<(), AppError> {
     let rt = create_runtime()?;
     rt.block_on(async {
-        let keyring = Keyring::new()
-            .await
-            .map_err(|e| KeyringError(Box::new(e)))?;
+        let keyring = connect_keyring().await?;
         keyring
             .delete(&KEYRING_ATTRIBUTES)
             .await
