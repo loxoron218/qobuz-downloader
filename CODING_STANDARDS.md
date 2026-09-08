@@ -5,7 +5,7 @@ across the actual codebase. Formatting and linting rules are enforced by the fol
 
 - [`rustfmt.toml`](./rustfmt.toml)
 - [`clippy.toml`](./clippy.toml)
-- the `[lints.clippy]` table in [`Cargo.toml`](./Cargo.toml) — notably `pedantic` and `nursery` groups are denied.
+- the `[lints.rust]` and `[lints.clippy]` tables in [`Cargo.toml`](./Cargo.toml) — notably `pedantic` and `nursery` groups are denied.
 
 The core priorities are:
 
@@ -40,13 +40,16 @@ src/
 
 ### Module naming (global stem uniqueness)
 
-Stems must be unique codebase-wide; singular and plural count as the same stem (`album` ≡ `albums`). Consequently, no two modules may share a stem in
-any position (`track_row` + `track_transition`, `album_card` + `album_playback`, or `playback::queue` + `ui::player::queue` are all forbidden).
+Every word of a module file name is a stem, and all stems must be unique codebase-wide across `src/`, `tests/`, and `benches/`. Singular and plural
+count as the same stem (`album` ≡ `albums`). A stem may not appear at **any word position** of any module name — neither as a leading word, a
+trailing word, nor in between. Consequently, no two modules may share a word in any position (`track_row` + `track_transition`, `album_card` +
+`album_playback`, `queue_persistence` + `settings_persistence`, or `playback::queue` + `ui::player::queue` are all forbidden). Stems are derived
+exclusively from `.rs` file names (parent indexes included); grouping directories without a parent index (e.g. `tests/verification/`) contribute no
+stems.
 
-### Parent-index modules (no `mod.rs`)
+### Parent-index modules
 
-Use the modern Rust module style: a `foo.rs` parent index that declares its submodules, with submodules living in a sibling `foo/` directory. There
-are no `mod.rs` files anywhere in the codebase.
+Use the modern Rust module style: a `foo.rs` parent index that declares its submodules, with submodules living in a sibling `foo/` directory.
 
 A parent index declares `pub mod` items and carries a `//!` module doc comment. It is **not** required to be a pure re-export shim: shared
 implementation that doesn't belong to a single submodule — such as a module-level trait or a shared error enum — lives directly in `foo.rs` alongside
@@ -74,16 +77,15 @@ pub mod database;
 ### Commands
 
 ```bash
-cargo clippy --fix --allow-dirty --all-targets && cargo fmt
+cargo clippy --fix --allow-dirty --all-targets --all-features && cargo fmt
 cargo test    # all tests must pass before committing
 cargo bench   # benchmarks
 ```
 
 ### Hard rules
 
-- **Never** commit with clippy warnings.
-- **Never** use `#[allow(...)]` attributes.
-- **Never** write `unsafe` code.
+- **Never** commit with clippy warnings; treat every warning as an error.
+- **Never** suppress lints with `#[allow(...)]` or `#[expect(...)]` attributes.
 
 ### Code style
 
@@ -262,6 +264,10 @@ The binary entry point initializes `tracing-subscriber` with an `EnvFilter`, a J
 /// # Arguments
 ///
 /// * `item_path` - Path to the item file
+///
+/// # Returns
+///
+/// * `Result<Self, ParseError>` - Loaded item or parse error
 pub fn open<P: AsRef<Path>>(path: P) -> Result<Self, ParseError> { ... }
 ```
 
