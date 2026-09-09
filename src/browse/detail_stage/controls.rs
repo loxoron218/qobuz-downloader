@@ -20,7 +20,7 @@ use {
         prelude::{BoxExt, ButtonExt, WidgetExt},
     },
     parking_lot::Mutex,
-    qobuz_api::models::track::Track,
+    qobuz_api::api::content::tracks::Track,
     tracing::error,
 };
 

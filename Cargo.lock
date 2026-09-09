@@ -1444,9 +1444,9 @@ dependencies = [
 
 [[package]]
 name = "qobuz-api"
-version = "1.0.3"
+version = "2.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a0756ae43153a060ad37f06966d5e7e97f141829733d0aaae2ae6c6498c82849"
+checksum = "7de5b0aa21e9c63f6c4412d399e3ae97af38dd156d2219e9f0728f0c77ab0152"
 dependencies = [
  "anyhow",
  "base64 0.23.1",

@@ -11,9 +11,9 @@ use {
     async_channel::Sender,
     libadwaita::gio::spawn_blocking,
     parking_lot::Mutex,
-    qobuz_api::{
-        api::service::QobuzApiService,
-        models::{album::Album, artist::Artist, playlist::Playlist, track::Track},
+    qobuz_api::api::{
+        content::{albums::Album, artists::Artist, playlists::Playlist, tracks::Track},
+        service::QobuzApiService,
     },
     tracing::{error, info, warn},
 };

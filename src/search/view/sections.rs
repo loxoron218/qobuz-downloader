@@ -17,7 +17,7 @@ use {
         prelude::{BoxExt, ListBoxRowExt, WidgetExt},
     },
     parking_lot::Mutex,
-    qobuz_api::models::search::SearchResult,
+    qobuz_api::api::content::catalog::SearchResult,
 };
 
 use crate::{

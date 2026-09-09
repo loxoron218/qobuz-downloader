@@ -18,9 +18,9 @@ use {
         prelude::{BoxExt, GestureSingleExt, WidgetExt},
     },
     parking_lot::Mutex,
-    qobuz_api::{
-        api::service::QobuzApiService,
-        models::{album::Album, artist::Artist},
+    qobuz_api::api::{
+        content::{albums::Album, artists::Artist},
+        service::QobuzApiService,
     },
 };
 
