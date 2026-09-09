@@ -1,17 +1,16 @@
 //! Qobuz Download GUI application.
 
 pub mod app;
+pub mod audio_quality;
 pub mod auth;
 pub mod browse;
 pub mod cover_art;
 pub mod dashboard;
 pub mod download;
-pub mod errors;
 pub mod instrument;
 pub mod preferences;
 pub mod search;
-pub mod types;
-pub mod ui;
+pub mod shell;
 pub mod window;
 
 use std::{hint::black_box, process::exit};
@@ -28,7 +27,7 @@ use {
     tracing_subscriber::fmt,
 };
 
-use crate::{app::AppState, window::frame::build_window};
+use crate::{app::AppState, window::assembly::build_window};
 
 fn main() -> ExitCode {
     fmt().with_max_level(Level::INFO).init();

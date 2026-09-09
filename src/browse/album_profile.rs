@@ -17,13 +17,13 @@ use {
 };
 
 use crate::{
-    browse::detail_common::{
-        panel::{
+    browse::detail_stage::{
+        controls::{
             append_separator, append_title_label, append_track_count_duration,
             build_detail_controls, build_header_scroll, build_item_section, build_track_row,
             connect_download_click, send_enqueue, wrap_toast_overlay,
         },
-        portrait::{load_cover_art, resolve_image_url},
+        exhibit::{load_cover_art, resolve_image_url},
     },
     download::progress::{DownloadCommand, DownloadItem::Album as AlbumItem, DownloadTask},
     preferences::settings::AppSettings,

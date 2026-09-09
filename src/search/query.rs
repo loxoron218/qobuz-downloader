@@ -1,4 +1,4 @@
-//! Search controller logic for catalog search with scope support.
+//! Search query logic for catalog search with scope support.
 
 use std::{
     fmt::{Debug, Formatter, Result as FmtResult},
@@ -18,7 +18,7 @@ use {
     tracing::{error, info},
 };
 
-use crate::search::controller::{
+use crate::search::query::{
     SearchEvent::{Error, Results},
     SearchScope::{Albums, All, Artists, Playlists, Tracks},
 };

@@ -22,7 +22,10 @@ use {
 };
 
 use crate::{
+    app::AppError::{self, Api, Download},
+    audio_quality::Quality,
     download::{
+        destination::album_output_dir,
         progress::{
             DownloadEvent::{self, Completed, Failed, Progress, Started},
             DownloadItem::{self, Album, Artist, Playlist, Track},
@@ -31,10 +34,7 @@ use crate::{
             },
             DownloadTask,
         },
-        worker::album_output_dir,
     },
-    errors::AppError::{self, Api, Download},
-    types::Quality,
 };
 
 /// Executes an enqueued download inline on the calling worker thread.

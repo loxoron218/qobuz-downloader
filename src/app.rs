@@ -1,17 +1,48 @@
-//! Application state management.
+//! Application state management and top-level error type.
 
 use std::{
     fmt::{Debug, Formatter, Result as FmtResult},
+    io::Error,
     sync::Arc,
 };
 
-use {parking_lot::Mutex, qobuz_api::api::service::QobuzApiService, tracing::info};
+use {
+    oo7::Error as Oo7Error,
+    parking_lot::Mutex,
+    qobuz_api::{api::service::QobuzApiService, errors::QobuzApiError},
+    serde_json::Error as SerdeError,
+    thiserror::Error,
+    tracing::info,
+};
 
 use crate::{
     auth::session::AuthState,
     cover_art::cache::CoverArtCache,
     preferences::settings::{AppSettings, load_settings},
 };
+
+/// Application-level error type.
+#[derive(Error, Debug)]
+pub enum AppError {
+    /// API library error.
+    #[error("API error: {0}")]
+    Api(#[from] QobuzApiError),
+    /// Keyring access error.
+    #[error("Keyring error: {0}")]
+    Keyring(Box<Oo7Error>),
+    /// Settings file I/O error.
+    #[error("Settings I/O error: {0}")]
+    Settings(#[from] Error),
+    /// Settings JSON parse error.
+    #[error("Settings parse error: {0}")]
+    SettingsParse(#[from] SerdeError),
+    /// Download-specific error.
+    #[error("Download error: {0}")]
+    Download(String),
+    /// Operation requires authentication.
+    #[error("Not authenticated")]
+    NotAuthenticated,
+}
 
 /// Central application state shared across modules.
 #[derive(Clone)]

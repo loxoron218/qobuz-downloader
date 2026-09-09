@@ -33,6 +33,7 @@ use {
 };
 
 use crate::download::{
+    monitor::{QueueSection, binding::setup_download_queue_factory},
     progress::{
         DownloadCommand::{self, Cancel},
         DownloadEvent::{self, Completed, Failed, Progress, Started},
@@ -42,7 +43,6 @@ use crate::download::{
         },
         DownloadTask, cancel_all_tasks,
     },
-    view::{QueueSection, cell::setup_download_queue_factory},
 };
 
 /// Builds the download queue section (`PreferencesGroup` with header, empty/active

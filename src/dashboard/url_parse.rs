@@ -6,7 +6,7 @@ use {
     tracing::warn,
 };
 
-use crate::dashboard::link::ParsedUrl::{Album, Playlist, Track};
+use crate::dashboard::url_parse::ParsedUrl::{Album, Playlist, Track};
 
 /// Download type parsed from a Qobuz URL or ID.
 #[derive(Clone, Debug)]

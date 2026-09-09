@@ -32,7 +32,7 @@ use crate::{
     search::view::{
         SearchCtx,
         SearchResultItem::{self, Album, Artist, Playlist, Track},
-        imagery::{AsyncCoverFetch, attach_cover_art},
+        thumbnails::{AsyncCoverFetch, attach_cover_art},
     },
 };
 

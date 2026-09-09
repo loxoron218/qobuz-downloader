@@ -27,18 +27,18 @@ use {
 use crate::{
     browse::{
         BrowseEvent, browse_album,
-        detail_common::{
-            panel::{
+        detail_stage::{
+            controls::{
                 append_separator, append_title_label, build_detail_controls, build_header_scroll,
                 build_item_section, connect_download_click, format_duration, send_enqueue,
                 wrap_toast_overlay,
             },
-            portrait::{build_cover_art, load_cover_art, resolve_image_url, strip_html_tags},
+            exhibit::{build_cover_art, load_cover_art, resolve_image_url, strip_html_tags},
         },
     },
     download::progress::{DownloadCommand, DownloadItem::Artist as ItemArtist, DownloadTask},
     preferences::settings::AppSettings,
-    ui::debounce_elapsed,
+    shell::debounce_elapsed,
 };
 
 /// Builds the artist detail view with albums from the artist catalog.

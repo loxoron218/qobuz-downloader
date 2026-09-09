@@ -1,16 +1,16 @@
-//! Preferences dialog UI.
+//! Preferences editor UI.
 
 use std::{hint::black_box, path::PathBuf, sync::Arc};
 
 use {
     libadwaita::{
         ActionRow, ComboRow, PreferencesDialog, PreferencesGroup, PreferencesPage,
-        gio::{Cancellable, File, prelude::FileExt},
-        glib::{Error, WeakRef, prelude::IsA},
+        gio::{Cancellable, File},
+        glib::{Error, WeakRef},
         gtk::{Align::Center, Button, FileDialog, StringList, Window},
         prelude::{
-            ActionRowExt, AdwDialogExt, ButtonExt, ComboRowExt, ObjectExt, PreferencesDialogExt,
-            PreferencesGroupExt, PreferencesPageExt,
+            ActionRowExt, AdwDialogExt, ButtonExt, ComboRowExt, FileExt, IsA, ObjectExt,
+            PreferencesDialogExt, PreferencesGroupExt, PreferencesPageExt,
         },
     },
     parking_lot::Mutex,
@@ -19,9 +19,9 @@ use {
 
 use crate::{
     app::AppState,
+    audio_quality::Quality::{self, Flac16_44, Flac24_96, Flac24_192, Mp3_320},
     auth::{keyring::delete, session::AuthState::Unauthenticated},
     preferences::settings::save_settings,
-    types::Quality::{self, Flac16_44, Flac24_96, Flac24_192, Mp3_320},
 };
 
 /// Maps a `Quality` value to the `ComboRow` selected index.

@@ -4,6 +4,6 @@
 //! button, and an embedded download queue section matching the original
 //! `qobuz-downloader` layout.
 
-pub mod construction;
-pub mod link;
-pub mod retrieval;
+pub mod fetch;
+pub mod page;
+pub mod url_parse;

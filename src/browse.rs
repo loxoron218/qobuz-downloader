@@ -1,9 +1,9 @@
 //! Browse module for album, artist, and playlist details.
 
-pub mod album_view;
-pub mod artist_view;
-pub mod detail_common;
-pub mod playlist_view;
+pub mod album_profile;
+pub mod artist_spotlight;
+pub mod detail_stage;
+pub mod playlist_collection;
 
 use std::sync::Arc;
 

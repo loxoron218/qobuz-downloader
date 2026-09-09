@@ -1,12 +1,12 @@
-//! Download view UI for active downloads and history.
+//! Download monitor UI for active downloads and history.
 //!
 //! Uses a `PreferencesGroup` + `Clamp` layout with a `Stack` switching between
 //! an empty `StatusPage` and a `ListView` with `SignalListItemFactory`.
 //! Matches the original `qobuz-downloader` download page UX.
 
-pub mod cell;
-pub mod hierarchy;
-pub mod queue;
+pub mod binding;
+pub mod ledger;
+pub mod traversal;
 
 use std::{
     collections::{HashMap, hash_map::RandomState},

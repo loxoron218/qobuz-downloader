@@ -1,4 +1,4 @@
-//! Download worker thread for background download processing.
+//! Download output directory layout for background downloads.
 
 use std::{
     hint::black_box,
@@ -7,7 +7,7 @@ use std::{
 
 use qobuz_api::sanitize::sanitize_filename;
 
-use crate::types::Quality;
+use crate::audio_quality::Quality;
 
 /// Computes the album output directory using "Artist/Album Title" folder naming.
 ///

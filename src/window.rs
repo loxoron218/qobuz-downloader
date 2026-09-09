@@ -1,4 +1,4 @@
 //! Main application window.
 
-pub mod dispatch;
-pub mod frame;
+pub mod assembly;
+pub mod router;

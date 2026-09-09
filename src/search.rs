@@ -1,4 +1,4 @@
 //! Search module.
 
-pub mod controller;
+pub mod query;
 pub mod view;

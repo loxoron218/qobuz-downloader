@@ -19,18 +19,18 @@ A modern, native Qobuz music downloader focused on high-fidelity audio downloads
 ## Codebase map (src/)
 
 - `specs/` — feature specs
-- `src/app.rs` — bootstrap, runtime, lifecycle
-- `src/auth/` — Qobuz authentication, keyring credentials, session management, login view
-- `src/browse/` — browse views: album, artist, playlist, shared detail widgets
+- `src/app.rs` — application state and top-level error type
+- `src/audio_quality.rs` — audio quality selection
+- `src/auth/` — Qobuz authentication: keyring credentials, session management, login form
+- `src/browse/` — album profile, artist spotlight, playlist collection, shared detail stage (controls, exhibit)
 - `src/cover_art/` — cover art fetching and caching
-- `src/download/` — download manager, worker pool, progress tracking, queue view
-- `src/preferences/` — settings, preferences dialog
-- `src/search/` — search controller and view
-- `src/errors.rs` — shared error types
+- `src/dashboard/` — dashboard page, URL parsing, metadata fetch
+- `src/download/` — download manager (pool, execution), destination layout, progress tracking, monitor UI (ledger, binding, traversal)
+- `src/preferences/` — settings persistence, preferences editor
+- `src/search/` — search query and results view (console, sections, card, thumbnails)
 - `src/instrument.rs` — diagnostics/instrumentation
-- `src/types.rs` — shared domain types
-- `src/ui.rs` — shared UI helpers
-- `src/window.rs` — main window / navigation
+- `src/shell.rs` — application shell helpers
+- `src/window.rs` — main window assembly and event routing
 
 ## Conventions & workflow
 

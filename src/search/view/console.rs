@@ -35,18 +35,18 @@ use crate::{
     download::progress::DownloadCommand,
     preferences::settings::AppSettings,
     search::{
-        controller::{
+        query::{
             SearchController, SearchEvent,
             SearchScope::{self, All},
         },
         view::{
             SearchCtx, SearchResultItem, SearchWidgets,
-            imagery::{
+            sections::setup_search_receiver,
+            setup_results_activation,
+            thumbnails::{
                 TextureEvent::{self, Loaded},
                 log_texture_send_error, setup_texture_receiver,
             },
-            listing::setup_search_receiver,
-            setup_results_activation,
         },
     },
 };

@@ -21,9 +21,9 @@ use {
 };
 
 use crate::{
-    browse::detail_common::portrait::resolve_thumbnail_url,
+    browse::detail_stage::exhibit::resolve_thumbnail_url,
     search::{
-        controller::{
+        query::{
             SearchEvent::{self, Error, Results},
             SearchScope::All,
         },
@@ -34,8 +34,8 @@ use crate::{
             SearchCategory::{self, Albums, Artists, Playlists, Tracks},
             SearchCtx,
             SearchResultItem::{self, Album, Artist, Playlist, Track},
-            imagery::fetch_missing_images,
-            row::create_data_row,
+            card::create_data_row,
+            thumbnails::fetch_missing_images,
         },
     },
 };

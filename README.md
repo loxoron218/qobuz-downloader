@@ -66,8 +66,8 @@ A modern, native Qobuz music downloader built with Rust and Libadwaita, providin
 ## Prerequisites
 
 ### System Dependencies
-- **GTK4 Development Libraries** (&ge;4.22)
-- **Libadwaita Development Libraries** (&ge;1.9)
+- **GTK4 Development Libraries** (&ge;4.24)
+- **Libadwaita Development Libraries** (&ge;1.10)
 
 #### Ubuntu/Debian:
 ```bash
@@ -164,40 +164,49 @@ Settings are persisted automatically and can be modified via the Preferences dia
 qobuz-downloader/
 +-- src/
 |   +-- main.rs              # Application entry point
-|   +-- app.rs               # Application state and initialization
+|   +-- app.rs               # Application state and top-level error type
 |   +-- window.rs            # Main window setup
-|   +-- ui.rs                # Shared UI utilities (clamp, scrolled)
-|   +-- types.rs             # Shared types (Quality enum)
-|   +-- errors.rs            # Domain error types
+|   |   +-- assembly.rs      # Window construction, geometry, shutdown
+|   |   +-- router.rs        # Auth/browse event routing
+|   +-- shell.rs             # Application shell utilities (clamp, scrolled)
+|   +-- audio_quality.rs     # Audio quality selection (Quality enum)
 |   +-- instrument.rs        # Tracing instrumentation
 |   +-- auth/                # Authentication module
-|   |   +-- mod.rs
 |   |   +-- session.rs       # Session management
-|   |   +-- login_view.rs    # Login window UI
+|   |   +-- login_form.rs    # Login form UI
 |   |   +-- keyring.rs       # GNOME Keyring credential storage
 |   +-- dashboard.rs         # Dashboard page with URL input and queue
+|   |   +-- page.rs          # Dashboard page construction
+|   |   +-- url_parse.rs     # Qobuz URL/ID parsing
+|   |   +-- fetch.rs         # Metadata fetch and enqueue
 |   +-- browse/              # Browse module
-|   |   +-- mod.rs
-|   |   +-- album_view.rs    # Album detail view
-|   |   +-- artist_view.rs   # Artist detail view
-|   |   +-- playlist_view.rs # Playlist detail view
-|   |   +-- detail_common.rs # Shared detail view utilities
+|   |   +-- album_profile.rs # Album detail page
+|   |   +-- artist_spotlight.rs # Artist detail page
+|   |   +-- playlist_collection.rs # Playlist detail page
+|   |   +-- detail_stage.rs  # Shared detail helpers
+|   |       +-- controls.rs  # Detail widget builders and controls
+|   |       +-- exhibit.rs   # Cover art and description helpers
 |   +-- search/              # Search module
-|   |   +-- mod.rs
-|   |   +-- controller.rs    # Search business logic
-|   |   +-- view.rs          # Search UI
+|   |   +-- query.rs         # Search query logic
+|   |   +-- view.rs          # Search results view
+|   |       +-- console.rs   # Search entry and scope selector
+|   |       +-- sections.rs  # Result listing and sections
+|   |       +-- card.rs      # Result rows and actions
+|   |       +-- thumbnails.rs # Cover art fetching
 |   +-- download/            # Download module
-|   |   +-- mod.rs
 |   |   +-- manager.rs       # Concurrent download manager
-|   |   +-- worker.rs        # Download worker threads
+|   |   |   +-- pool.rs      # Fixed-size worker pool
+|   |   |   +-- execution.rs # Download execution and reporting
+|   |   +-- destination.rs   # Output directory layout
 |   |   +-- progress.rs      # Progress tracking types
-|   |   +-- view.rs          # Download queue UI
+|   |   +-- monitor.rs       # Download monitor UI
+|   |       +-- ledger.rs    # Queue section and event loop
+|   |       +-- binding.rs   # Row factory and cell bindings
+|   |       +-- traversal.rs # Widget hierarchy helpers
 |   +-- cover_art/           # Cover art module
-|   |   +-- mod.rs
 |   |   +-- cache.rs         # Cover art caching
 |   +-- preferences/         # Preferences module
-|       +-- mod.rs
-|       +-- dialog.rs        # Preferences dialog
+|       +-- editor.rs        # Preferences editor UI
 |       +-- settings.rs      # Settings persistence
 +-- assets/                  # Application assets (icons, images)
 +-- specs/                   # Specification documents

@@ -1,4 +1,4 @@
-//! Shared application types used across multiple modules.
+//! Audio quality selection for downloads.
 
 use std::fmt::{Display, Formatter, Result as FmtResult};
 
@@ -7,7 +7,7 @@ use {
     serde::{Deserialize, Serialize},
 };
 
-use crate::types::Quality::{Flac16_44, Flac24_96, Flac24_192, Mp3_320};
+use crate::audio_quality::Quality::{Flac16_44, Flac24_96, Flac24_192, Mp3_320};
 
 /// Audio quality selection wrapping API library constants.
 #[derive(Clone, Copy, Debug, Default, Deserialize, Eq, PartialEq, Serialize)]

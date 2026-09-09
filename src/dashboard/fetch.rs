@@ -14,8 +14,9 @@ use {
 };
 
 use crate::{
-    browse::detail_common::portrait::resolve_thumbnail_url,
-    dashboard::link::ParsedUrl::{
+    audio_quality::Quality,
+    browse::detail_stage::exhibit::resolve_thumbnail_url,
+    dashboard::url_parse::ParsedUrl::{
         self, Album as ParsedAlbum, Playlist as ParsedPlaylist, Track as ParsedTrack,
     },
     download::progress::{
@@ -23,7 +24,6 @@ use crate::{
         DownloadItem::{self, Album, Playlist, Track},
         DownloadTask,
     },
-    types::Quality,
 };
 
 /// Context for enqueuing a download after metadata fetch.

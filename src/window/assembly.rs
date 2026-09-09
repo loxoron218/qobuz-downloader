@@ -11,12 +11,11 @@ use {
     async_channel::{Sender, unbounded},
     libadwaita::{
         Application, ApplicationWindow, HeaderBar, NavigationPage, NavigationView, ToolbarView,
-        gio::prelude::ApplicationExt,
         glib::Propagation::Proceed,
         gtk::{Box as GtkBox, Button, Label},
         prelude::{
-            AdwApplicationWindowExt, AdwDialogExt, ButtonExt, GtkWindowExt, NavigationPageExt,
-            WidgetExt,
+            AdwApplicationWindowExt, AdwDialogExt, ApplicationExt, ButtonExt, GtkWindowExt,
+            NavigationPageExt, WidgetExt,
         },
     },
     tracing::{error, info},
@@ -25,21 +24,21 @@ use {
 use crate::{
     app::AppState,
     auth::{
-        login_view::build,
+        login_form::build,
         session::{AuthEvent, AuthState::Authenticating},
     },
     browse::BrowseEvent,
-    dashboard::construction::build as build_dashboard,
+    dashboard::page::build as build_dashboard,
     download::{
         manager::DownloadManager,
         progress::DownloadCommand::{self, Shutdown},
     },
     preferences::{
-        dialog,
+        editor,
         settings::{AppSettings, save_settings},
     },
-    search::view::scaffold::build as build_view,
-    window::dispatch::{attempt_keyring_login, setup_auth_receiver, setup_browse_receiver},
+    search::view::console::build as build_view,
+    window::router::{attempt_keyring_login, setup_auth_receiver, setup_browse_receiver},
 };
 
 /// Saves settings and logs any error.
@@ -180,7 +179,7 @@ pub fn build_window(app: &Application, state: &AppState) -> ApplicationWindow {
                 &login_root_for_logout,
                 &login_header_for_logout,
             );
-            let dialog = dialog::build(&state_for_dialog, on_logout, &window_for_dialog);
+            let dialog = editor::build(&state_for_dialog, on_logout, &window_for_dialog);
             dialog.present(Some(&window_for_dialog));
         });
         for _ in [black_box(settings_clicked)] {}

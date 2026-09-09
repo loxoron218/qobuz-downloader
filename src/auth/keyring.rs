@@ -7,7 +7,7 @@ use {
     tokio::runtime::Runtime,
 };
 
-use crate::errors::AppError::{self, Download, Keyring as KeyringError};
+use crate::app::AppError::{self, Download, Keyring as KeyringError};
 
 /// Keyring attribute key-value pairs for application identification.
 const KEYRING_ATTRIBUTES: [(&str, &str); 1] = [("application", "qobuz-downloader")];

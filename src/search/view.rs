@@ -1,10 +1,10 @@
 //! Search view UI matching the original implementation: `SearchEntry`, scope selector,
 //! Hi-Res and explicit content indicators, inline `SplitButton` for download/queue actions.
 
-pub mod imagery;
-pub mod listing;
-pub mod row;
-pub mod scaffold;
+pub mod card;
+pub mod console;
+pub mod sections;
+pub mod thumbnails;
 
 use std::{
     hint::black_box,
@@ -37,15 +37,15 @@ use crate::{
     download::progress::DownloadCommand,
     preferences::settings::AppSettings,
     search::{
-        controller::SearchScope::{self, Albums, Artists, Playlists, Tracks},
+        query::SearchScope::{self, Albums, Artists, Playlists, Tracks},
         view::{
             ActivationTarget::{Album, Artist, Playlist},
-            imagery::TextureEvent,
-            listing::find_item_at_position,
-            scaffold::{handle_back_clicked, handle_key_pressed},
+            console::{handle_back_clicked, handle_key_pressed},
+            sections::find_item_at_position,
+            thumbnails::TextureEvent,
         },
     },
-    ui::debounce_elapsed,
+    shell::debounce_elapsed,
 };
 
 /// Target for double-click activation navigation.

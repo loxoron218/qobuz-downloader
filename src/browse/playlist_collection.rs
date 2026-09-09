@@ -14,13 +14,13 @@ use {
 };
 
 use crate::{
-    browse::detail_common::{
-        panel::{
+    browse::detail_stage::{
+        controls::{
             append_separator, append_title_label, append_track_count_duration,
             build_detail_controls, build_header_scroll, build_item_section, build_track_row,
             connect_download_click, send_enqueue, wrap_toast_overlay,
         },
-        portrait::{build_cover_art, strip_html_tags},
+        exhibit::{build_cover_art, strip_html_tags},
     },
     download::progress::{DownloadCommand, DownloadItem::Playlist as PlaylistItem, DownloadTask},
     preferences::settings::AppSettings,

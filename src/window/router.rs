@@ -14,7 +14,7 @@ use {
 use crate::{
     app::AppState,
     auth::{
-        login_view::{
+        login_form::{
             LoginMethod::{EmailPassword, Token},
             LoginWidgets, current_method,
         },
@@ -26,8 +26,8 @@ use crate::{
     },
     browse::{
         BrowseEvent::{self, AlbumMeta, AlbumTracks, Artist, Error, Playlist},
-        album_view::{AlbumDetailWidgets, build_meta, populate_tracks},
-        artist_view, playlist_view,
+        album_profile::{AlbumDetailWidgets, build_meta, populate_tracks},
+        artist_spotlight, playlist_collection,
     },
     download::progress::DownloadCommand,
 };
@@ -196,13 +196,16 @@ fn handle_browse_event(
             );
         }
         Playlist { playlist } => {
-            let root =
-                playlist_view::build(&playlist, Arc::clone(&state.settings), cmd_sender.clone());
+            let root = playlist_collection::build(
+                &playlist,
+                Arc::clone(&state.settings),
+                cmd_sender.clone(),
+            );
             let page = NavigationPage::new(&root, "Playlist");
             nav_view.push(&page);
         }
         Artist { artist, albums } => {
-            let root = artist_view::build(
+            let root = artist_spotlight::build(
                 &artist,
                 &albums,
                 Arc::clone(&state.settings),

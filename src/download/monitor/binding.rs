@@ -25,8 +25,16 @@ use {
 };
 
 use crate::{
-    browse::detail_common::portrait::spawn_cover_load,
+    browse::detail_stage::exhibit::spawn_cover_load,
     download::{
+        monitor::{
+            RowContext, TaskMap, clone_row_context,
+            ledger::{refresh_model_item, send_cancel_command},
+            traversal::{
+                first_child_of, first_child_of_box, last_child_of_box, nth_child_of,
+                second_child_of_box, third_child_of_box,
+            },
+        },
         progress::{
             DownloadCommand::{self, Cancel},
             DownloadRowData,
@@ -34,14 +42,6 @@ use crate::{
                 Active, Cancelled, Completed as StatusCompleted, Failed as ItemFailed, Queued,
             },
             DownloadTask,
-        },
-        view::{
-            RowContext, TaskMap, clone_row_context,
-            hierarchy::{
-                first_child_of, first_child_of_box, last_child_of_box, nth_child_of,
-                second_child_of_box, third_child_of_box,
-            },
-            queue::{refresh_model_item, send_cancel_command},
         },
     },
 };

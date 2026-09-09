@@ -11,8 +11,8 @@ use std::{
 use {libadwaita::gtk::gdk::Texture, num_traits::AsPrimitive, parking_lot::Mutex};
 
 use crate::{
+    audio_quality::Quality,
     download::progress::DownloadStatus::{Active, Cancelled, Queued},
-    types::Quality,
 };
 
 /// Global unique ID counter for download tasks.

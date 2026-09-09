@@ -13,8 +13,8 @@ use {
 };
 
 use crate::{
+    app::AppError::{self, NotAuthenticated},
     auth::keyring,
-    errors::AppError::{self, NotAuthenticated},
 };
 
 /// Events sent from background auth operations to the GUI thread.

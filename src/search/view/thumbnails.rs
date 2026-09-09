@@ -16,12 +16,12 @@ use {
 };
 
 use crate::{
-    browse::detail_common::portrait::resolve_thumbnail_url,
+    browse::detail_stage::exhibit::resolve_thumbnail_url,
     cover_art::cache::CoverArtCache,
     search::view::{
         SearchCtx,
         SearchResultItem::{self, Album, Artist, Playlist, Track},
-        imagery::TextureEvent::{Loaded, Register},
+        thumbnails::TextureEvent::{Loaded, Register},
     },
 };
 

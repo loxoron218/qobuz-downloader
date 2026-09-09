@@ -1,4 +1,4 @@
-//! Shared UI scaffolding utilities.
+//! Application shell scaffolding utilities.
 
 use std::{
     sync::atomic::{AtomicU64, Ordering::Relaxed},

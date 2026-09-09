@@ -1,4 +1,4 @@
-//! Login view UI for Qobuz authentication.
+//! Login form UI for Qobuz authentication.
 
 use std::{hint::black_box, sync::Arc};
 
@@ -24,7 +24,7 @@ use {
 use crate::{
     app::AppState,
     auth::{
-        login_view::LoginMethod::{EmailPassword, Token},
+        login_form::LoginMethod::{EmailPassword, Token},
         session::{
             AuthEvent::{self, Authenticated, AuthenticationFailed},
             perform_login, perform_token_login,

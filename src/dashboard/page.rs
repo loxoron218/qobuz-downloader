@@ -20,17 +20,17 @@ use {
 
 use crate::{
     app::AppState,
+    audio_quality::Quality::{self, Flac16_44, Flac24_96, Flac24_192, Mp3_320},
     dashboard::{
-        link::try_parse_download_url,
-        retrieval::{DownloadCtx, create_persistent_toast, fetch_and_enqueue},
+        fetch::{DownloadCtx, create_persistent_toast, fetch_and_enqueue},
+        url_parse::try_parse_download_url,
     },
     download::{
+        monitor::ledger::build_queue_section,
         progress::{DownloadCommand, DownloadEvent, DownloadTask},
-        view::queue::build_queue_section,
     },
     preferences::settings::save_settings,
-    types::Quality::{self, Flac16_44, Flac24_96, Flac24_192, Mp3_320},
-    ui::{build_content_clamp, wrap_clamp_in_scrolled},
+    shell::{build_content_clamp, wrap_clamp_in_scrolled},
 };
 
 /// Widgets from the dashboard page for external event handling.

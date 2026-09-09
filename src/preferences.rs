@@ -1,4 +1,4 @@
 //! Preferences module.
 
-pub mod dialog;
+pub mod editor;
 pub mod settings;
