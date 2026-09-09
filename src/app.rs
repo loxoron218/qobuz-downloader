@@ -1,6 +1,9 @@
 //! Application state management.
 
-use std::sync::Arc;
+use std::{
+    fmt::{Debug, Formatter, Result as FmtResult},
+    sync::Arc,
+};
 
 use {parking_lot::Mutex, qobuz_api::api::service::QobuzApiService, tracing::info};
 
@@ -38,5 +41,11 @@ impl AppState {
             auth_state: Arc::new(Mutex::new(AuthState::default())),
             cover_art_cache: CoverArtCache::new(),
         }
+    }
+}
+
+impl Debug for AppState {
+    fn fmt(&self, f: &mut Formatter<'_>) -> FmtResult {
+        f.debug_struct("AppState").finish_non_exhaustive()
     }
 }

@@ -49,6 +49,7 @@ pub fn debounce_elapsed(last_ts: &AtomicU64, min_gap_ms: u64) -> bool {
 /// # Returns
 ///
 /// A tuple of `(Clamp, Box)`.
+#[must_use]
 pub fn build_content_clamp() -> (Clamp, Box) {
     let main_clamp = Clamp::builder().maximum_size(800).build();
     let main_box = Box::new(Vertical, 24);
@@ -70,6 +71,7 @@ pub fn build_content_clamp() -> (Clamp, Box) {
 /// # Returns
 ///
 /// A `ScrolledWindow` containing the clamp.
+#[must_use]
 pub fn wrap_clamp_in_scrolled(clamp: &Clamp) -> ScrolledWindow {
     let wrapper = Box::new(Vertical, 0);
     wrapper.append(clamp);

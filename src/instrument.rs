@@ -7,7 +7,7 @@
 #[cfg(test)]
 mod tests {
     use std::{
-        future::{Future, Ready, ready},
+        future::{Ready, ready},
         time::{Duration, Instant},
     };
 
@@ -87,7 +87,7 @@ mod tests {
     /// Panics if the underlying `instrumented` future resolves unexpectedly.
     #[TokioTest]
     async fn instrumented_under_threshold() {
-        instrumented("fast_op", fast_future()).await;
+        assert_eq!(instrumented("fast_op", fast_future()).await, 42);
     }
 
     /// Verifies that a slow operation is instrumented above the threshold.
@@ -97,7 +97,7 @@ mod tests {
     /// Panics if the underlying `instrumented` future resolves unexpectedly.
     #[TokioTest]
     async fn instrumented_over_threshold() {
-        instrumented("slow_op", slow_future()).await;
+        assert_eq!(instrumented("slow_op", slow_future()).await, "done");
     }
 
     #[test]

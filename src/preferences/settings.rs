@@ -42,6 +42,7 @@ impl Default for AppSettings {
 }
 
 /// Returns the settings file path following XDG conventions.
+#[must_use]
 pub fn settings_path() -> PathBuf {
     user_config_dir()
         .join("qobuz-downloader")
@@ -49,6 +50,7 @@ pub fn settings_path() -> PathBuf {
 }
 
 /// Loads settings from disk, returning defaults if file is missing.
+#[must_use]
 pub fn load_settings() -> AppSettings {
     let path = settings_path();
     read_to_string(&path).map_or_else(

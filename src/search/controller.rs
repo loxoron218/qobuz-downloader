@@ -1,8 +1,11 @@
 //! Search controller logic for catalog search with scope support.
 
-use std::sync::{
-    Arc,
-    atomic::{AtomicU64, Ordering::Relaxed},
+use std::{
+    fmt::{Debug, Formatter, Result as FmtResult},
+    sync::{
+        Arc,
+        atomic::{AtomicU64, Ordering::Relaxed},
+    },
 };
 
 use {
@@ -13,6 +16,11 @@ use {
         api::service::QobuzApiService, errors::QobuzApiError, models::search::SearchResult,
     },
     tracing::{error, info},
+};
+
+use crate::search::controller::{
+    SearchEvent::{Error, Results},
+    SearchScope::{Albums, All, Artists, Playlists, Tracks},
 };
 
 /// Manages search queries and dispatches results to the GUI thread.
@@ -44,7 +52,7 @@ impl SearchController {
         let api_service = Arc::clone(&self.api_service);
         let query = query.to_string();
 
-        spawn_blocking(move || {
+        drop(spawn_blocking(move || {
             execute_search_scoped(
                 query,
                 scope,
@@ -53,7 +61,15 @@ impl SearchController {
                 &api_service,
                 &sender,
             );
-        });
+        }));
+    }
+}
+
+impl Debug for SearchController {
+    fn fmt(&self, f: &mut Formatter<'_>) -> FmtResult {
+        f.debug_struct("SearchController")
+            .field("query_counter", &self.query_counter)
+            .finish_non_exhaustive()
     }
 }
 
@@ -103,6 +119,7 @@ impl SearchScope {
     }
 
     /// Converts this `SearchScope` to a u32 index for the dropdown.
+    #[must_use]
     pub const fn to_u32(self) -> u32 {
         match self {
             Self::All => 0,
@@ -124,8 +141,8 @@ fn execute_search_scoped(
     sender: &Sender<SearchEvent>,
 ) {
     let result = match scope {
-        SearchScope::All => api_service.lock().search_catalog(&query, Some(20), None),
-        SearchScope::Albums => {
+        All => api_service.lock().search_catalog(&query, Some(20), None),
+        Albums => {
             let albums = api_service.lock().search_albums(&query, Some(20), None);
             albums.map(|a| SearchResult {
                 albums: Some(a),
@@ -134,7 +151,7 @@ fn execute_search_scoped(
                 playlists: None,
             })
         }
-        SearchScope::Tracks => {
+        Tracks => {
             let tracks = api_service.lock().search_tracks(&query, Some(20), None);
             tracks.map(|t| SearchResult {
                 albums: None,
@@ -143,7 +160,7 @@ fn execute_search_scoped(
                 playlists: None,
             })
         }
-        SearchScope::Artists => {
+        Artists => {
             let artists = api_service.lock().search_artists(&query, Some(20), None);
             artists.map(|a| SearchResult {
                 albums: None,
@@ -152,7 +169,7 @@ fn execute_search_scoped(
                 playlists: None,
             })
         }
-        SearchScope::Playlists => {
+        Playlists => {
             let playlists = api_service.lock().search_playlists(&query, Some(20), None);
             playlists.map(|p| SearchResult {
                 albums: None,
@@ -191,11 +208,11 @@ fn search_result_to_event(
     match result {
         Ok(result) => {
             info!(query = %query, "Search completed");
-            SearchEvent::Results { query, result }
+            Results { query, result }
         }
         Err(err) => {
             error!(error = %err, query = %query, "Search failed");
-            SearchEvent::Error {
+            Error {
                 error: format!("{err}"),
             }
         }

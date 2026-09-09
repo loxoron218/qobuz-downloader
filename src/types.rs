@@ -7,6 +7,8 @@ use {
     serde::{Deserialize, Serialize},
 };
 
+use crate::types::Quality::{Flac16_44, Flac24_96, Flac24_192, Mp3_320};
+
 /// Audio quality selection wrapping API library constants.
 #[derive(Clone, Copy, Debug, Default, Deserialize, Eq, PartialEq, Serialize)]
 pub enum Quality {
@@ -19,16 +21,6 @@ pub enum Quality {
     Flac24_96,
     /// FLAC 24-bit / 192kHz (`format_id` = 27).
     Flac24_192,
-}
-
-impl Quality {
-    /// Returns the file extension for this quality level.
-    pub const fn extension(self) -> &'static str {
-        match self {
-            Self::Mp3_320 => "mp3",
-            Self::Flac16_44 | Self::Flac24_96 | Self::Flac24_192 => "flac",
-        }
-    }
 }
 
 impl Display for Quality {
@@ -59,10 +51,10 @@ impl TryFrom<i32> for Quality {
 impl From<Quality> for i32 {
     fn from(quality: Quality) -> Self {
         match quality {
-            Quality::Mp3_320 => MP3_320,
-            Quality::Flac16_44 => FLAC_16_44,
-            Quality::Flac24_96 => FLAC_24_96,
-            Quality::Flac24_192 => FLAC_24_192,
+            Mp3_320 => MP3_320,
+            Flac16_44 => FLAC_16_44,
+            Flac24_96 => FLAC_24_96,
+            Flac24_192 => FLAC_24_192,
         }
     }
 }

@@ -18,16 +18,19 @@ use {
 
 use crate::{
     browse::detail_common::{
-        append_separator, append_title_label, append_track_count_duration, build_detail_controls,
-        build_header_scroll, build_item_section, build_track_row, connect_download_click,
-        load_cover_art, resolve_image_url, send_enqueue, wrap_toast_overlay,
+        panel::{
+            append_separator, append_title_label, append_track_count_duration,
+            build_detail_controls, build_header_scroll, build_item_section, build_track_row,
+            connect_download_click, send_enqueue, wrap_toast_overlay,
+        },
+        portrait::{load_cover_art, resolve_image_url},
     },
-    download::progress::{DownloadCommand, DownloadItem, DownloadTask},
+    download::progress::{DownloadCommand, DownloadItem::Album as AlbumItem, DownloadTask},
     preferences::settings::AppSettings,
 };
 
 /// Widgets returned by the album detail view builder.
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct AlbumDetailWidgets {
     /// Root toolbar view widget.
     pub root: ToolbarView,
@@ -53,7 +56,8 @@ pub struct AlbumDetailWidgets {
 ///
 /// # Returns
 ///
-/// Album detail view widgets with an empty track container
+/// Album detail view widgets with an empty track container.
+#[must_use]
 pub fn build_meta(album: &Album) -> AlbumDetailWidgets {
     let title = album.title.as_deref().unwrap_or("Album");
     let header_scroll = build_header_scroll(title);
@@ -209,7 +213,7 @@ fn wire_download_button(
         settings,
         toast_overlay,
         move |quality, base_dir| {
-            let item = DownloadItem::Album {
+            let item = AlbumItem {
                 album_id: album_id.clone(),
                 title: album_title.clone(),
                 artist: artist_name.clone(),

@@ -16,7 +16,7 @@ const KEYRING_ATTRIBUTES: [(&str, &str); 1] = [("application", "qobuz-downloader
 const KEYRING_LABEL: &str = "Qobuz Downloader Credentials";
 
 /// Stored credentials retrieved from the keyring.
-#[derive(Deserialize, Serialize)]
+#[derive(Debug, Deserialize, Serialize)]
 pub enum StoredCredentials {
     /// Email and password authentication.
     EmailPassword {

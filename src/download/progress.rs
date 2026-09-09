@@ -2,6 +2,7 @@
 
 use std::{
     collections::HashMap,
+    hash::BuildHasher,
     path::PathBuf,
     sync::atomic::{AtomicU64, Ordering::Relaxed},
     time::SystemTime,
@@ -9,7 +10,10 @@ use std::{
 
 use {libadwaita::gtk::gdk::Texture, num_traits::AsPrimitive, parking_lot::Mutex};
 
-use crate::types::Quality;
+use crate::{
+    download::progress::DownloadStatus::{Active, Cancelled, Queued},
+    types::Quality,
+};
 
 /// Global unique ID counter for download tasks.
 static NEXT_ID: AtomicU64 = AtomicU64::new(1);
@@ -109,6 +113,7 @@ pub enum DownloadItem {
 
 impl DownloadItem {
     /// Returns the display title for this item.
+    #[must_use]
     pub const fn title(&self) -> &str {
         match self {
             Self::Artist { name, .. } => name.as_str(),
@@ -119,6 +124,7 @@ impl DownloadItem {
     }
 
     /// Returns the display subtitle (artist name or empty).
+    #[must_use]
     pub const fn subtitle(&self) -> &str {
         match self {
             Self::Album { artist, .. } | Self::Track { artist, .. } => artist.as_str(),
@@ -127,6 +133,7 @@ impl DownloadItem {
     }
 
     /// Returns the cover art URL if available.
+    #[must_use]
     pub fn cover_url(&self) -> Option<&str> {
         match self {
             Self::Album { cover_url, .. }
@@ -138,7 +145,7 @@ impl DownloadItem {
 }
 
 /// Byte-level download progress.
-#[derive(Clone, Debug, Default)]
+#[derive(Clone, Copy, Debug, Default)]
 pub struct DownloadProgress {
     /// Bytes received so far.
     pub bytes_downloaded: u64,
@@ -152,6 +159,7 @@ pub struct DownloadProgress {
 
 impl DownloadProgress {
     /// Returns the download percentage if total is known.
+    #[must_use]
     pub fn percentage(&self) -> Option<f64> {
         if let Some(total) = self.total_bytes.filter(|&total| total > 0) {
             return Some(
@@ -182,7 +190,7 @@ pub struct DownloadRowData {
 }
 
 /// State machine for download lifecycle.
-#[derive(Clone, Debug, Default, Eq, PartialEq)]
+#[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
 pub enum DownloadStatus {
     /// Currently downloading.
     Active,
@@ -218,13 +226,14 @@ pub struct DownloadTask {
 
 impl DownloadTask {
     /// Creates a new download task with the given parameters.
+    #[must_use]
     pub fn new(item: DownloadItem, quality: Quality, output_dir: PathBuf) -> Self {
         Self {
             id: next_id(),
             item,
             quality,
             output_dir,
-            status: DownloadStatus::Queued,
+            status: Queued,
             progress: DownloadProgress::default(),
             completed_at: None,
         }
@@ -244,13 +253,13 @@ pub fn next_id() -> u64 {
 /// # Arguments
 ///
 /// * `tasks` - The task map to update
-pub fn cancel_all_tasks(tasks: &Mutex<HashMap<u64, DownloadTask>>) {
+pub fn cancel_all_tasks<S: BuildHasher>(tasks: &Mutex<HashMap<u64, DownloadTask, S>>) {
     let mut map = tasks.lock();
     for task in map
         .values_mut()
-        .filter(|t| t.status == DownloadStatus::Active || t.status == DownloadStatus::Queued)
+        .filter(|t| t.status == Active || t.status == Queued)
     {
-        task.status = DownloadStatus::Cancelled;
+        task.status = Cancelled;
         task.completed_at = Some(SystemTime::now());
     }
 }

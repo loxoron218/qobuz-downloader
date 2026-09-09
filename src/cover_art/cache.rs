@@ -12,7 +12,7 @@ use {
 use crate::cover_art::{bytes_to_texture, fetch_image_bytes};
 
 /// In-memory cache of cover art textures keyed by URL.
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct CoverArtCache {
     /// Cached textures mapped by URL.
     textures: Arc<Mutex<HashMap<String, Option<Texture>>>>,
@@ -20,6 +20,7 @@ pub struct CoverArtCache {
 
 impl CoverArtCache {
     /// Creates a new empty cache.
+    #[must_use]
     pub fn new() -> Self {
         Self {
             textures: Arc::new(Mutex::new(HashMap::new())),
@@ -27,6 +28,7 @@ impl CoverArtCache {
     }
 
     /// Returns a cached texture if available.
+    #[must_use]
     pub fn get(&self, url: &str) -> Option<Texture> {
         let textures = self.textures.lock();
         match textures.get(url) {
@@ -44,11 +46,19 @@ impl CoverArtCache {
         if textures.contains_key(&url) {
             return;
         }
-        textures.insert(url.clone(), None);
+        drop(textures.insert(url.clone(), None));
         drop(textures);
 
         let textures = Arc::clone(&self.textures);
-        spawn_blocking(move || load_and_cache_texture(url, &sender, &textures));
+        drop(spawn_blocking(move || {
+            load_and_cache_texture(url, &sender, &textures);
+        }));
+    }
+}
+
+impl Default for CoverArtCache {
+    fn default() -> Self {
+        Self::new()
     }
 }
 
@@ -59,7 +69,7 @@ fn load_and_cache_texture(
     textures: &Arc<Mutex<HashMap<String, Option<Texture>>>>,
 ) {
     let texture = fetch_texture(&url);
-    textures.lock().insert(url.clone(), texture.clone());
+    drop(textures.lock().insert(url.clone(), texture.clone()));
     if let Err(err) = sender.send_blocking((url, texture)) {
         warn!(error = %err, "Failed to send cover art result");
     }

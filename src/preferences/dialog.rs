@@ -1,6 +1,6 @@
 //! Preferences dialog UI.
 
-use std::{path::PathBuf, sync::Arc};
+use std::{hint::black_box, path::PathBuf, sync::Arc};
 
 use {
     libadwaita::{
@@ -21,26 +21,26 @@ use crate::{
     app::AppState,
     auth::{keyring::delete, session::AuthState::Unauthenticated},
     preferences::settings::save_settings,
-    types::Quality,
+    types::Quality::{self, Flac16_44, Flac24_96, Flac24_192, Mp3_320},
 };
 
 /// Maps a `Quality` value to the `ComboRow` selected index.
 const fn quality_to_index(quality: Quality) -> u32 {
     match quality {
-        Quality::Mp3_320 => 0,
-        Quality::Flac16_44 => 1,
-        Quality::Flac24_96 => 2,
-        Quality::Flac24_192 => 3,
+        Mp3_320 => 0,
+        Flac16_44 => 1,
+        Flac24_96 => 2,
+        Flac24_192 => 3,
     }
 }
 
 /// Maps a `ComboRow` selected index to a `Quality` value.
 const fn index_to_quality(index: u32) -> Quality {
     match index {
-        0 => Quality::Mp3_320,
-        2 => Quality::Flac24_96,
-        3 => Quality::Flac24_192,
-        _ => Quality::Flac16_44,
+        0 => Mp3_320,
+        2 => Flac24_96,
+        3 => Flac24_192,
+        _ => Flac16_44,
     }
 }
 
@@ -66,7 +66,7 @@ fn connect_folder_picker(
     let window = window.clone();
     let selected_dir = Arc::clone(selected_dir);
     let dir_row = directory_row.clone();
-    browse_button.connect_clicked(move |_| {
+    let browse_clicked = browse_button.connect_clicked(move |_| {
         let file_dialog = FileDialog::new();
         file_dialog.set_title("Select Download Directory");
 
@@ -81,6 +81,7 @@ fn connect_folder_picker(
             on_folder_selected(&selected_dir, &dir_row, result);
         });
     });
+    for _ in [black_box(browse_clicked)] {}
 }
 
 /// Builds and returns a `PreferencesDialog`.
@@ -169,17 +170,19 @@ pub fn build(
         let quality_row = quality_row;
         let state = state.clone();
 
-        dialog.connect_closed(move |_| {
+        let dialog_closed = dialog.connect_closed(move |_| {
             save_preferences_from_dialog(&state, &selected_dir, &quality_row);
         });
+        for _ in [black_box(dialog_closed)] {}
     }
 
     {
         let dialog_weak = dialog.downgrade();
         let state = state.clone();
-        logout_button.connect_clicked(move |_| {
+        let logout_clicked = logout_button.connect_clicked(move |_| {
             perform_logout(&state, &dialog_weak, &on_logout);
         });
+        for _ in [black_box(logout_clicked)] {}
     }
 
     dialog
@@ -224,7 +227,8 @@ fn perform_logout(
         *auth_state = Unauthenticated;
     }
     if let Some(dialog) = dialog_weak.upgrade() {
-        dialog.close();
+        let closed = dialog.close();
+        for _ in [black_box(closed)] {}
     }
     on_logout();
 }

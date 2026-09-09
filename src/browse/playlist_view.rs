@@ -15,9 +15,12 @@ use {
 
 use crate::{
     browse::detail_common::{
-        append_separator, append_title_label, append_track_count_duration, build_cover_art,
-        build_detail_controls, build_header_scroll, build_item_section, build_track_row,
-        connect_download_click, send_enqueue, strip_html_tags, wrap_toast_overlay,
+        panel::{
+            append_separator, append_title_label, append_track_count_duration,
+            build_detail_controls, build_header_scroll, build_item_section, build_track_row,
+            connect_download_click, send_enqueue, wrap_toast_overlay,
+        },
+        portrait::{build_cover_art, strip_html_tags},
     },
     download::progress::{DownloadCommand, DownloadItem::Playlist as PlaylistItem, DownloadTask},
     preferences::settings::AppSettings,
@@ -35,7 +38,7 @@ use crate::{
 ///
 /// # Returns
 ///
-/// Root toolbar view
+/// Root toolbar view.
 pub fn build(
     playlist: &Playlist,
     settings: Arc<Mutex<AppSettings>>,

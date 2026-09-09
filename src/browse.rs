@@ -77,7 +77,7 @@ pub fn browse_album(
     album_id: String,
     sender: Sender<BrowseEvent>,
 ) {
-    spawn_blocking(move || {
+    drop(spawn_blocking(move || {
         let api = api_service.lock();
 
         let album = match api.get_album(&album_id, Some("track_ids")) {
@@ -97,7 +97,6 @@ pub fn browse_album(
 
         let track_ids = album.track_ids.clone().unwrap_or_default();
 
-        // Phase 1: send metadata immediately so the UI can display the album page.
         info!(album_id = %album_id, "Album metadata loaded");
         send_event(
             &sender,
@@ -106,7 +105,6 @@ pub fn browse_album(
             },
         );
 
-        // Phase 2: fetch all track details.
         let tracks: Vec<Track> = track_ids
             .iter()
             .filter_map(|&track_id| match api.get_track(track_id) {
@@ -121,7 +119,7 @@ pub fn browse_album(
 
         info!(album_id = %album_id, track_count = %tracks.len(), "Album tracks loaded");
         send_event(&sender, BrowseEvent::AlbumTracks { album, tracks });
-    });
+    }));
 }
 
 /// Loads playlist details including all tracks.
@@ -139,7 +137,7 @@ pub fn browse_playlist(
     playlist_id: String,
     sender: Sender<BrowseEvent>,
 ) {
-    spawn_blocking(move || {
+    drop(spawn_blocking(move || {
         let api = api_service.lock();
 
         let playlist = match api.get_playlist(&playlist_id, Some("tracks")) {
@@ -160,7 +158,7 @@ pub fn browse_playlist(
         drop(api);
         info!(playlist_id = %playlist_id, "Playlist loaded");
         send_event(&sender, BrowseEvent::Playlist { playlist });
-    });
+    }));
 }
 
 /// Loads artist details and their album catalog.
@@ -178,7 +176,7 @@ pub fn browse_artist(
     artist_id: i32,
     sender: Sender<BrowseEvent>,
 ) {
-    spawn_blocking(move || {
+    drop(spawn_blocking(move || {
         let api = api_service.lock();
 
         let artist = match api.get_artist(artist_id, None) {
@@ -217,5 +215,5 @@ pub fn browse_artist(
         drop(api);
         info!(artist_id = %artist_id, album_count = %albums.len(), "Artist detail loaded");
         send_event(&sender, BrowseEvent::Artist { artist, albums });
-    });
+    }));
 }

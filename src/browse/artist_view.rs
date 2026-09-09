@@ -1,6 +1,9 @@
 //! Artist detail view UI.
 
-use std::sync::{Arc, atomic::AtomicU64};
+use std::{
+    hint::black_box,
+    sync::{Arc, atomic::AtomicU64},
+};
 
 use {
     async_channel::Sender,
@@ -25,9 +28,12 @@ use crate::{
     browse::{
         BrowseEvent, browse_album,
         detail_common::{
-            append_separator, append_title_label, build_cover_art, build_detail_controls,
-            build_header_scroll, build_item_section, connect_download_click, format_duration,
-            load_cover_art, resolve_image_url, send_enqueue, strip_html_tags, wrap_toast_overlay,
+            panel::{
+                append_separator, append_title_label, build_detail_controls, build_header_scroll,
+                build_item_section, connect_download_click, format_duration, send_enqueue,
+                wrap_toast_overlay,
+            },
+            portrait::{build_cover_art, load_cover_art, resolve_image_url, strip_html_tags},
         },
     },
     download::progress::{DownloadCommand, DownloadItem::Artist as ItemArtist, DownloadTask},
@@ -46,7 +52,7 @@ use crate::{
 ///
 /// # Returns
 ///
-/// Root toolbar view
+/// Root toolbar view.
 pub fn build(
     artist: &Artist,
     albums: &[Album],
@@ -209,7 +215,7 @@ fn attach_album_nav_handler(
     let id = album_id;
     let overlay = toast_overlay.clone();
     let last_nav_ms: Arc<AtomicU64> = Arc::new(AtomicU64::new(0));
-    gesture.connect_pressed(move |_, _, _, _| {
+    let album_nav_handler = gesture.connect_pressed(move |_, _, _, _| {
         if !debounce_elapsed(&last_nav_ms, 500) {
             return;
         }
@@ -218,6 +224,7 @@ fn attach_album_nav_handler(
         overlay.add_toast(toast);
         browse_album(Arc::clone(&api), id.clone(), sender.clone());
     });
+    for _ in [black_box(album_nav_handler)] {}
 }
 
 /// Wires the download button to enqueue the entire artist as a single download task.

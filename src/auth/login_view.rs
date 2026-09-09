@@ -1,6 +1,6 @@
 //! Login view UI for Qobuz authentication.
 
-use std::sync::Arc;
+use std::{hint::black_box, sync::Arc};
 
 use {
     async_channel::Sender,
@@ -23,9 +23,12 @@ use {
 
 use crate::{
     app::AppState,
-    auth::session::{
-        AuthEvent::{self, Authenticated, AuthenticationFailed},
-        perform_login, perform_token_login,
+    auth::{
+        login_view::LoginMethod::{EmailPassword, Token},
+        session::{
+            AuthEvent::{self, Authenticated, AuthenticationFailed},
+            perform_login, perform_token_login,
+        },
     },
 };
 
@@ -39,7 +42,7 @@ pub enum LoginMethod {
 }
 
 /// Widgets from the login view needed for external event handling.
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct LoginWidgets {
     /// Root content box.
     pub root: Box,
@@ -65,6 +68,7 @@ pub struct LoginWidgets {
 ///
 /// * `state` - Shared application state
 /// * `sender` - Channel sender for auth events to the GUI thread
+#[must_use]
 pub fn build(state: &AppState, sender: Sender<AuthEvent>) -> LoginWidgets {
     let content = Box::new(Vertical, 18);
     content.set_margin_top(36);
@@ -133,8 +137,8 @@ pub fn build(state: &AppState, sender: Sender<AuthEvent>) -> LoginWidgets {
     token_section.append(&token_preferences_group);
 
     let credential_stack = Stack::new();
-    credential_stack.add_named(&email_section, Some("email"));
-    credential_stack.add_named(&token_section, Some("token"));
+    drop(credential_stack.add_named(&email_section, Some("email")));
+    drop(credential_stack.add_named(&token_section, Some("token")));
     credential_stack.set_visible_child_name("email");
     content.append(&credential_stack);
 
@@ -168,11 +172,12 @@ pub fn build(state: &AppState, sender: Sender<AuthEvent>) -> LoginWidgets {
 }
 
 /// Returns which login method is currently selected.
+#[must_use]
 pub fn current_method(widgets: &LoginWidgets) -> LoginMethod {
     if widgets.email_radio.is_active() {
-        LoginMethod::EmailPassword
+        EmailPassword
     } else {
-        LoginMethod::Token
+        Token
     }
 }
 
@@ -184,19 +189,21 @@ fn connect_toggle_handlers(
 ) {
     let credential_stack_c1 = credential_stack.clone();
     let email_radio_c1 = email_radio.clone();
-    email_radio.connect_toggled(move |_| {
+    let email_toggle_handler = email_radio.connect_toggled(move |_| {
         if email_radio_c1.is_active() {
             credential_stack_c1.set_visible_child_name("email");
         }
     });
+    for _ in [black_box(email_toggle_handler)] {}
 
     let credential_stack_c2 = credential_stack.clone();
     let token_radio_c2 = token_radio.clone();
-    token_radio.connect_toggled(move |_| {
+    let token_toggle_handler = token_radio.connect_toggled(move |_| {
         if token_radio_c2.is_active() {
             credential_stack_c2.set_visible_child_name("token");
         }
     });
+    for _ in [black_box(token_toggle_handler)] {}
 }
 
 /// Connects the submit button handler for both login modes.
@@ -219,7 +226,7 @@ fn connect_submit_handler(state: &AppState, sender: Sender<AuthEvent>, widgets: 
         ..
     } = widgets.clone();
 
-    submit_button.connect_clicked(clone!(
+    let submit_handler = submit_button.connect_clicked(clone!(
         #[strong]
         email_row,
         #[strong]
@@ -258,6 +265,7 @@ fn connect_submit_handler(state: &AppState, sender: Sender<AuthEvent>, widgets: 
             }
         }
     ));
+    for _ in [black_box(submit_handler)] {}
 }
 
 /// Handles email/password login submission.
@@ -285,7 +293,7 @@ fn handle_email_login(
 
     let sender = sender.clone();
     let api_service = Arc::clone(api_service);
-    spawn_blocking(move || {
+    drop(spawn_blocking(move || {
         let result = perform_login(&api_service, &email, &password);
         let event = match result {
             Ok(user_id) => Authenticated { user_id },
@@ -299,7 +307,7 @@ fn handle_email_login(
         if let Err(err) = sender.send_blocking(event) {
             warn!(error = %err, "Failed to send auth event, receiver likely dropped");
         }
-    });
+    }));
 }
 
 /// Handles user ID/token login submission.
@@ -327,7 +335,7 @@ fn handle_token_login(
 
     let sender = sender.clone();
     let api_service = Arc::clone(api_service);
-    spawn_blocking(move || {
+    drop(spawn_blocking(move || {
         let result = perform_token_login(&api_service, &user_id, &auth_token);
         let event = match result {
             Ok(user_id) => Authenticated { user_id },
@@ -341,5 +349,5 @@ fn handle_token_login(
         if let Err(err) = sender.send_blocking(event) {
             warn!(error = %err, "Failed to send auth event, receiver likely dropped");
         }
-    });
+    }));
 }
