@@ -1,7 +1,8 @@
 //! Search query logic for catalog search with scope support.
 
 use std::{
-    fmt::{Debug, Formatter, Result as FmtResult},
+    fmt::{Debug, Formatter, Result},
+    result::Result as StdResult,
     sync::{
         Arc,
         atomic::{AtomicU64, Ordering::Relaxed},
@@ -67,7 +68,7 @@ impl SearchController {
 }
 
 impl Debug for SearchController {
-    fn fmt(&self, f: &mut Formatter<'_>) -> FmtResult {
+    fn fmt(&self, f: &mut Formatter<'_>) -> Result {
         f.debug_struct("SearchController")
             .field("query_counter", &self.query_counter)
             .finish_non_exhaustive()
@@ -203,7 +204,7 @@ fn is_stale_query(counter: &Arc<AtomicU64>, query_id: u64, query: &str) -> bool 
 
 /// Converts a search result into a `SearchEvent`.
 fn search_result_to_event(
-    result: Result<SearchResult, QobuzApiError>,
+    result: StdResult<SearchResult, QobuzApiError>,
     query: String,
 ) -> SearchEvent {
     match result {

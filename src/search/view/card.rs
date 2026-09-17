@@ -90,7 +90,8 @@ fn build_subtitle(item: &SearchResultItem) -> String {
 ///
 /// Returns the row and, for artist/playlist items lacking cover art, the info needed
 /// to fetch and apply their cover asynchronously.
-pub(super) fn create_data_row(
+#[must_use]
+pub fn create_data_row(
     item: &SearchResultItem,
     ctx: &SearchCtx,
 ) -> (ListBoxRow, Option<AsyncCoverFetch>) {

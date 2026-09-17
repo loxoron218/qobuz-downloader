@@ -222,7 +222,7 @@ fn setup_cancel_all<S: BuildHasher + 'static, R: BuildHasher + 'static>(
 }
 
 /// Sends a cancel command via the sender, logging failures.
-pub(super) fn send_cancel_command(cmd_sender: &Arc<Sender<DownloadCommand>>, cmd: DownloadCommand) {
+pub fn send_cancel_command(cmd_sender: &Arc<Sender<DownloadCommand>>, cmd: DownloadCommand) {
     if let Err(e) = cmd_sender.try_send(cmd) {
         error!(error = %e, "Failed to send cancel command");
     }
@@ -293,7 +293,7 @@ fn handle_event<S: BuildHasher>(
 }
 
 /// Refreshes a specific item in the model by finding its position and splicing.
-pub(super) fn refresh_model_item<S: BuildHasher>(
+pub fn refresh_model_item<S: BuildHasher>(
     model: &ListStore,
     id: u64,
     tasks: &Arc<Mutex<HashMap<u64, DownloadTask, S>>>,

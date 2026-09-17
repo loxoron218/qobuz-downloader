@@ -38,16 +38,14 @@ use crate::{
         progress::{
             DownloadCommand::{self, Cancel},
             DownloadRowData,
-            DownloadStatus::{
-                Active, Cancelled, Completed as StatusCompleted, Failed as ItemFailed, Queued,
-            },
+            DownloadStatus::{Active, Cancelled, Completed, Failed, Queued},
             DownloadTask,
         },
     },
 };
 
 /// Sets up the `SignalListItemFactory` for download queue items.
-pub(super) fn setup_download_queue_factory<S: BuildHasher + 'static>(
+pub fn setup_download_queue_factory<S: BuildHasher + 'static>(
     cmd_sender: &Arc<Sender<DownloadCommand>>,
     tasks: &Arc<Mutex<HashMap<u64, DownloadTask, S>>>,
     model: &ListStore,
@@ -251,9 +249,9 @@ fn update_status_label(label: &Label, task: &DownloadTask) {
     match task.status {
         Queued => label.set_label("Queued"),
         Active => label.set_label("Downloading..."),
-        StatusCompleted => label.set_label("Completed"),
+        Completed => label.set_label("Completed"),
         Cancelled => label.set_label("Cancelled"),
-        ItemFailed => label.set_label("Failed"),
+        Failed => label.set_label("Failed"),
     }
 }
 

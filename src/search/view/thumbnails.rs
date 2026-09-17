@@ -26,17 +26,19 @@ use crate::{
 };
 
 /// A picture widget awaiting an asynchronously fetched cover art.
-pub(super) struct AsyncCoverFetch {
+#[derive(Debug)]
+pub struct AsyncCoverFetch {
     /// The picture widget to update once the cover is fetched.
-    pub(super) picture: Picture,
+    pub picture: Picture,
     /// The entity id (artist or playlist) whose cover is fetched.
-    pub(super) id: String,
+    pub id: String,
     /// Whether the id refers to an artist (vs. a playlist).
-    pub(super) is_artist: bool,
+    pub is_artist: bool,
 }
 
 /// Cover art load and registration events for the texture receiver.
-pub(super) enum TextureEvent {
+#[derive(Debug)]
+pub enum TextureEvent {
     /// A picture widget registered itself for a cover URL.
     Register {
         /// The cover URL.
@@ -54,7 +56,7 @@ pub(super) enum TextureEvent {
 }
 
 /// Attaches cover art texture to the picture widget.
-pub(super) fn attach_cover_art(item: &SearchResultItem, picture: &Picture, ctx: &SearchCtx) {
+pub fn attach_cover_art(item: &SearchResultItem, picture: &Picture, ctx: &SearchCtx) {
     let url = match item {
         Track { cover_url, .. }
         | Album { cover_url, .. }
@@ -111,7 +113,7 @@ fn send_fetched_url(
 /// * `pending` - Picture widgets (with their entity id and kind) whose cover art still needs to be
 ///   fetched
 /// * `ctx` - Shared search context
-pub(super) fn fetch_missing_images(pending: Vec<AsyncCoverFetch>, ctx: &SearchCtx) {
+pub fn fetch_missing_images(pending: Vec<AsyncCoverFetch>, ctx: &SearchCtx) {
     if pending.is_empty() {
         return;
     }
@@ -276,7 +278,7 @@ fn handle_texture(url: &str, texture: Option<Texture>, pictures: &[Picture]) {
 }
 
 /// Logs a texture-forward send failure if the channel is closed.
-pub(super) fn log_texture_send_error(result: Result<(), SendError<TextureEvent>>) {
+pub fn log_texture_send_error(result: Result<(), SendError<TextureEvent>>) {
     if let Err(e) = result {
         warn!(error = %e, "Failed to forward texture load event");
     }
@@ -293,7 +295,7 @@ fn register_cover_texture(sender: &Sender<TextureEvent>, url: String, picture: P
 ///
 /// The receiver owns the URL-to-picture registry on the main thread, since GTK
 /// widgets are not thread-safe.
-pub(super) fn setup_texture_receiver(receiver: Receiver<TextureEvent>) {
+pub fn setup_texture_receiver(receiver: Receiver<TextureEvent>) {
     drop(MainContext::default().spawn_local(async move {
         let mut registry = HashMap::<String, Vec<Picture>>::new();
         while let Ok(event) = receiver.recv().await {

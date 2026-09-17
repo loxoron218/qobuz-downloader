@@ -1,7 +1,7 @@
 //! Application state management and top-level error type.
 
 use std::{
-    fmt::{Debug, Formatter, Result as FmtResult},
+    fmt::{Debug, Formatter, Result},
     io::Error,
     sync::Arc,
 };
@@ -76,7 +76,7 @@ impl AppState {
 }
 
 impl Debug for AppState {
-    fn fmt(&self, f: &mut Formatter<'_>) -> FmtResult {
+    fn fmt(&self, f: &mut Formatter<'_>) -> Result {
         f.debug_struct("AppState").finish_non_exhaustive()
     }
 }

@@ -12,7 +12,7 @@ mod tests {
     };
 
     use {
-        tokio::{test as TokioTest, time::sleep},
+        tokio::{test as tokio_test, time::sleep},
         tracing::{Span, info_span, warn},
     };
 
@@ -80,22 +80,12 @@ mod tests {
         result
     }
 
-    /// Verifies that a fast operation is instrumented below the threshold.
-    ///
-    /// # Panics
-    ///
-    /// Panics if the underlying `instrumented` future resolves unexpectedly.
-    #[TokioTest]
+    #[tokio_test]
     async fn instrumented_under_threshold() {
         assert_eq!(instrumented("fast_op", fast_future()).await, 42);
     }
 
-    /// Verifies that a slow operation is instrumented above the threshold.
-    ///
-    /// # Panics
-    ///
-    /// Panics if the underlying `instrumented` future resolves unexpectedly.
-    #[TokioTest]
+    #[tokio_test]
     async fn instrumented_over_threshold() {
         assert_eq!(instrumented("slow_op", slow_future()).await, "done");
     }

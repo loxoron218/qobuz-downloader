@@ -220,10 +220,6 @@ pub fn handle_cancel<S: BuildHasher, R: BuildHasher>(
 /// * `cancel` - Cancellation flag checked during download
 /// * `progress_callback` - Called after each item in batch downloads (`items_completed`,
 ///   `total_items`)
-///
-/// # Errors
-///
-/// Returns `Api` if the download fails.
 fn execute_download<F>(
     api_service: &Arc<Mutex<QobuzApiService>>,
     item: &DownloadItem,
@@ -331,10 +327,6 @@ where
 /// * `output_dir` - Output directory for downloaded files
 /// * `cancel` - Cancellation flag checked between tracks
 /// * `progress_callback` - Called after each track download with (completed, total)
-///
-/// # Errors
-///
-/// Returns `Download` if no tracks could be downloaded.
 fn download_album_tracks<F>(
     api: &mut QobuzApiService,
     track_ids: &[i32],

@@ -52,7 +52,7 @@ use crate::{
 };
 
 /// Handles ESC key press to pop the navigation view or reset the search scope.
-pub(super) fn handle_key_pressed(
+pub fn handle_key_pressed(
     key: Key,
     scope: &Arc<Mutex<SearchScope>>,
     nav_view: &NavigationView,
@@ -71,7 +71,7 @@ pub(super) fn handle_key_pressed(
 }
 
 /// Handles back button click to pop the navigation view or reset the search scope.
-pub(super) fn handle_back_clicked(
+pub fn handle_back_clicked(
     scope: &Arc<Mutex<SearchScope>>,
     nav_view: &NavigationView,
     scope_selector: &DropDown,

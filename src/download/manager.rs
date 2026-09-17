@@ -5,7 +5,7 @@ pub mod pool;
 
 use std::{
     collections::HashMap,
-    fmt::{Debug, Formatter, Result as FmtResult},
+    fmt::{Debug, Formatter, Result},
     hash::BuildHasher,
     sync::{Arc, atomic::AtomicBool},
 };
@@ -104,7 +104,7 @@ impl DownloadManager {
 }
 
 impl Debug for DownloadManager {
-    fn fmt(&self, f: &mut Formatter<'_>) -> FmtResult {
+    fn fmt(&self, f: &mut Formatter<'_>) -> Result {
         f.debug_struct("DownloadManager").finish_non_exhaustive()
     }
 }

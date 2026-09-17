@@ -33,7 +33,7 @@ use crate::{
 };
 
 /// Sets up the auth event receiver to update the UI on auth state changes.
-pub(super) fn setup_auth_receiver(
+pub fn setup_auth_receiver(
     state: &AppState,
     toolbar: &ToolbarView,
     nav_view: &NavigationView,
@@ -114,7 +114,7 @@ fn reset_login_sensitivity(login_widgets: &LoginWidgets) {
 }
 
 /// Attempts automatic login using stored keyring credentials on startup.
-pub(super) fn attempt_keyring_login(state: &AppState, sender: &Sender<AuthEvent>) {
+pub fn attempt_keyring_login(state: &AppState, sender: &Sender<AuthEvent>) {
     let api_service = Arc::clone(&state.api_service);
     let sender = sender.clone();
     drop(spawn_blocking(move || {
@@ -138,7 +138,7 @@ pub(super) fn attempt_keyring_login(state: &AppState, sender: &Sender<AuthEvent>
 }
 
 /// Sets up the browse event receiver to show detail views on album navigation.
-pub(super) fn setup_browse_receiver(
+pub fn setup_browse_receiver(
     state: &AppState,
     nav_view: &NavigationView,
     browse_sender: Sender<BrowseEvent>,

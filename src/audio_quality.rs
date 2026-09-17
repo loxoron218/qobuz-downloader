@@ -1,6 +1,9 @@
 //! Audio quality selection for downloads.
 
-use std::fmt::{Display, Formatter, Result as FmtResult};
+use std::{
+    fmt::{Display, Formatter, Result},
+    result::Result as StdResult,
+};
 
 use {
     qobuz_api::api::content::stream::quality::{FLAC_16_44, FLAC_24_96, FLAC_24_192, MP3_320},
@@ -24,7 +27,7 @@ pub enum Quality {
 }
 
 impl Display for Quality {
-    fn fmt(&self, f: &mut Formatter<'_>) -> FmtResult {
+    fn fmt(&self, f: &mut Formatter<'_>) -> Result {
         match self {
             Self::Mp3_320 => write!(f, "MP3 320kbps"),
             Self::Flac16_44 => write!(f, "FLAC 16-bit / 44.1kHz"),
@@ -37,7 +40,7 @@ impl Display for Quality {
 impl TryFrom<i32> for Quality {
     type Error = String;
 
-    fn try_from(value: i32) -> Result<Self, Self::Error> {
+    fn try_from(value: i32) -> StdResult<Self, Self::Error> {
         match value {
             v if v == MP3_320 => Ok(Self::Mp3_320),
             v if v == FLAC_16_44 => Ok(Self::Flac16_44),

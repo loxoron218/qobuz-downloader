@@ -7,6 +7,7 @@ pub mod sections;
 pub mod thumbnails;
 
 use std::{
+    fmt::{Debug, Formatter, Result},
     hint::black_box,
     sync::{
         Arc,
@@ -49,7 +50,8 @@ use crate::{
 };
 
 /// Target for double-click activation navigation.
-enum ActivationTarget {
+#[derive(Clone, Debug)]
+pub enum ActivationTarget {
     /// Browse album detail.
     Album(String),
     /// Browse artist detail.
@@ -94,7 +96,7 @@ impl SearchCategory {
 }
 
 /// Shared context passed through search result processing.
-struct SearchCtx {
+pub struct SearchCtx {
     /// Results list box.
     list_box: ListBox,
     /// Search result items vector.
@@ -121,9 +123,15 @@ struct SearchCtx {
     scope_selector: DropDown,
 }
 
+impl Debug for SearchCtx {
+    fn fmt(&self, f: &mut Formatter<'_>) -> Result {
+        f.debug_struct("SearchCtx").finish_non_exhaustive()
+    }
+}
+
 /// Structured search result item with full display data.
 #[derive(Clone, Debug)]
-enum SearchResultItem {
+pub enum SearchResultItem {
     /// Track result.
     Track {
         /// Track ID.

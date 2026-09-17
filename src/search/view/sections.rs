@@ -328,7 +328,8 @@ fn populate_track_items(
 }
 
 /// Finds an item at the given `ListBox` row position (accounting for section headers).
-pub(super) fn find_item_at_position(
+#[must_use]
+pub fn find_item_at_position(
     items: &[SearchResultItem],
     row_index: u32,
 ) -> Option<ActivationTarget> {
@@ -355,7 +356,7 @@ pub(super) fn find_item_at_position(
 }
 
 /// Sets up the search event receiver to update the list box.
-pub(super) fn setup_search_receiver(receiver: Receiver<SearchEvent>, ctx: SearchCtx) {
+pub fn setup_search_receiver(receiver: Receiver<SearchEvent>, ctx: SearchCtx) {
     drop(MainContext::default().spawn_local(async move {
         while let Ok(event) = receiver.recv().await {
             handle_search_event(event, &ctx);

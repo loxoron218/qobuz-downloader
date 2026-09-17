@@ -143,10 +143,6 @@ pub fn perform_keyring_login(
 /// # Returns
 ///
 /// The authenticated user ID on success.
-///
-/// # Errors
-///
-/// Returns `AppError` if the API login call fails.
 fn authenticate_with_credentials(
     api_service: &Arc<Mutex<QobuzApiService>>,
     creds: &StoredCredentials,
