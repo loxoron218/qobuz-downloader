@@ -34,13 +34,10 @@ struct RowContext<S: BuildHasher = RandomState> {
     /// Command sender for issuing download commands.
     cmd_sender: Arc<Sender<DownloadCommand>>,
     /// Shared task map for task status lookups and updates.
-    tasks: TaskMap<S>,
+    tasks: Arc<Mutex<HashMap<u64, DownloadTask, S>>>,
     /// List model backing the queue view.
     model: ListStore,
 }
-
-/// Shared map of active download tasks, keyed by task ID.
-pub type TaskMap<S = RandomState> = Arc<Mutex<HashMap<u64, DownloadTask, S>>>;
 
 /// Returns an owned copy of a row context for use in a `move` closure.
 fn clone_row_context<S: BuildHasher>(ctx: &RowContext<S>) -> RowContext<S> {

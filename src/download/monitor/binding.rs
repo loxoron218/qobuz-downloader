@@ -28,7 +28,7 @@ use crate::{
     browse::detail_stage::exhibit::spawn_cover_load,
     download::{
         monitor::{
-            RowContext, TaskMap, clone_row_context,
+            RowContext, clone_row_context,
             ledger::{refresh_model_item, send_cancel_command},
             traversal::{
                 first_child_of, first_child_of_box, last_child_of_box, nth_child_of,
@@ -236,7 +236,7 @@ fn wire_cancel_button<S: BuildHasher + 'static>(
 }
 
 /// Marks a task as cancelled in the tasks map.
-fn mark_task_cancelled<S: BuildHasher>(tasks: &TaskMap<S>, id: u64) {
+fn mark_task_cancelled<S: BuildHasher>(tasks: &Arc<Mutex<HashMap<u64, DownloadTask, S>>>, id: u64) {
     let mut map = tasks.lock();
     if let Some(t) = map.get_mut(&id) {
         t.status = Cancelled;
