@@ -63,8 +63,7 @@ pub fn build(
             .tracks
             .as_ref()
             .and_then(|t| t.items.as_ref())
-            .map(Vec::as_slice)
-            .unwrap_or_default();
+            .map_or_default(Vec::as_slice);
 
         for track in tracks {
             let track_row = build_track_row(track);
