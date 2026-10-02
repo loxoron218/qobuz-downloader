@@ -7,11 +7,11 @@ use {
     libadwaita::{
         SplitButton, Toast,
         gtk::{
-            Align::{Center, End as AlignEnd, Start},
+            Align::{Center, End, Start},
             Box, Button, Image, Label, ListBoxRow,
             Orientation::{Horizontal, Vertical},
             Picture, Popover,
-            pango::EllipsizeMode::End,
+            pango::EllipsizeMode::End as EllipsizeEnd,
         },
         prelude::{BoxExt, ButtonExt, ListBoxRowExt, PopoverExt, WidgetExt},
     },
@@ -22,16 +22,16 @@ use {
 use crate::{
     download::progress::{
         DownloadCommand::{self, Enqueue},
-        DownloadItem::{
-            self, Album as DownloadAlbum, Artist as DownloadArtist, Playlist as DownloadPlaylist,
-            Track as DownloadTrack,
-        },
+        DownloadItem::{self, Album, Artist, Playlist, Track},
         DownloadTask,
     },
     preferences::settings::AppSettings,
     search::view::{
         SearchCtx,
-        SearchResultItem::{self, Album, Artist, Playlist, Track},
+        SearchResultItem::{
+            self, Album as ResultAlbum, Artist as ResultArtist, Playlist as ResultPlaylist,
+            Track as ResultTrack,
+        },
         thumbnails::{AsyncCoverFetch, attach_cover_art},
     },
 };
@@ -50,7 +50,7 @@ fn push_quality_parts(parts: &mut Vec<String>, duration: i32, bit_depth: i32, sa
 /// Formats a subtitle string for a search result item.
 fn build_subtitle(item: &SearchResultItem) -> String {
     match item {
-        Track {
+        ResultTrack {
             artist,
             album,
             duration,
@@ -62,7 +62,7 @@ fn build_subtitle(item: &SearchResultItem) -> String {
             push_quality_parts(&mut parts, *duration, *bit_depth, *sampling_rate);
             parts.join(" • ")
         }
-        Album {
+        ResultAlbum {
             artist,
             year,
             track_count,
@@ -81,8 +81,8 @@ fn build_subtitle(item: &SearchResultItem) -> String {
             push_quality_parts(&mut parts, *duration, *bit_depth, *sampling_rate);
             parts.join(" • ")
         }
-        Artist { .. } => String::from("Artist"),
-        Playlist { .. } => String::from("Playlist"),
+        ResultArtist { .. } => String::from("Artist"),
+        ResultPlaylist { .. } => String::from("Playlist"),
     }
 }
 
@@ -115,12 +115,12 @@ pub fn create_data_row(
     attach_cover_art(item, &picture, ctx);
 
     let pending_fetch = match item {
-        Artist { id, cover_url, .. } if cover_url.is_none() => Some(AsyncCoverFetch {
+        ResultArtist { id, cover_url, .. } if cover_url.is_none() => Some(AsyncCoverFetch {
             picture,
             id: id.to_string(),
             is_artist: true,
         }),
-        Playlist { id, cover_url, .. } if cover_url.is_none() => Some(AsyncCoverFetch {
+        ResultPlaylist { id, cover_url, .. } if cover_url.is_none() => Some(AsyncCoverFetch {
             picture,
             id: id.clone(),
             is_artist: false,
@@ -141,19 +141,19 @@ fn build_info_box(item: &SearchResultItem) -> Box {
     info_box.set_valign(Center);
 
     let title = match item {
-        Track { title, .. } | Album { title, .. } => title.clone(),
-        Artist { name, .. } | Playlist { name, .. } => name.clone(),
+        ResultTrack { title, .. } | ResultAlbum { title, .. } => title.clone(),
+        ResultArtist { name, .. } | ResultPlaylist { name, .. } => name.clone(),
     };
     let subtitle = build_subtitle(item);
 
     let title_label = Label::new(Some(&title));
     title_label.set_xalign(0.0);
-    title_label.set_ellipsize(End);
+    title_label.set_ellipsize(EllipsizeEnd);
     title_label.add_css_class("title-4");
 
     let subtitle_label = Label::new(Some(&subtitle));
     subtitle_label.set_xalign(0.0);
-    subtitle_label.set_ellipsize(End);
+    subtitle_label.set_ellipsize(EllipsizeEnd);
     subtitle_label.add_css_class("dim-label");
 
     info_box.append(&title_label);
@@ -165,10 +165,10 @@ fn build_info_box(item: &SearchResultItem) -> Box {
 /// Builds the explicit content indicator ("E" label).
 fn build_explicit_indicator(item: &SearchResultItem) -> Box {
     let is_explicit = match item {
-        Track { is_explicit, .. } | Album { is_explicit, .. } | Playlist { is_explicit, .. } => {
-            *is_explicit
-        }
-        Artist { .. } => false,
+        ResultTrack { is_explicit, .. }
+        | ResultAlbum { is_explicit, .. }
+        | ResultPlaylist { is_explicit, .. } => *is_explicit,
+        ResultArtist { .. } => false,
     };
 
     let container = Box::new(Vertical, 0);
@@ -179,7 +179,7 @@ fn build_explicit_indicator(item: &SearchResultItem) -> Box {
     label.set_tooltip_text(Some("Explicit Content"));
     label.set_css_classes(&["error", "caption", "explicit-indicator"]);
     container.append(&label);
-    container.set_halign(AlignEnd);
+    container.set_halign(End);
     container.set_valign(Center);
     container.set_margin_start(4);
 
@@ -189,12 +189,12 @@ fn build_explicit_indicator(item: &SearchResultItem) -> Box {
 /// Builds the Hi-Res audio indicator icon.
 fn build_hires_indicator(item: &SearchResultItem) -> Box {
     let is_hires = match item {
-        Track {
+        ResultTrack {
             bit_depth,
             sampling_rate,
             ..
         }
-        | Album {
+        | ResultAlbum {
             bit_depth,
             sampling_rate,
             ..
@@ -214,7 +214,7 @@ fn build_hires_indicator(item: &SearchResultItem) -> Box {
         icon.set_from_file(Some("./assets/hires.png"));
     }
     container.append(&icon);
-    container.set_halign(AlignEnd);
+    container.set_halign(End);
     container.set_valign(Center);
     container.set_margin_start(8);
 
@@ -254,47 +254,47 @@ fn create_split_button(item: &SearchResultItem, ctx: &SearchCtx) -> SplitButton 
         .label("Download")
         .tooltip_text("Download")
         .popover(&popover)
-        .halign(AlignEnd)
+        .halign(End)
         .valign(Center)
         .css_classes(["suggested-action"])
         .build();
 
     let download_item = match item {
-        Track {
+        ResultTrack {
             id,
             title,
             artist,
             cover_url,
             ..
-        } => DownloadTrack {
+        } => Track {
             track_id: *id,
             title: title.clone(),
             artist: artist.clone(),
             cover_url: cover_url.clone(),
         },
-        Album {
+        ResultAlbum {
             id,
             title,
             artist,
             cover_url,
             ..
-        } => DownloadAlbum {
+        } => Album {
             album_id: id.clone(),
             title: title.clone(),
             artist: artist.clone(),
             cover_url: cover_url.clone(),
         },
-        Playlist {
+        ResultPlaylist {
             id,
             name,
             cover_url,
             ..
-        } => DownloadPlaylist {
+        } => Playlist {
             playlist_id: id.clone(),
             title: name.clone(),
             cover_url: cover_url.clone(),
         },
-        Artist { id, name, .. } => DownloadArtist {
+        ResultArtist { id, name, .. } => Artist {
             artist_id: *id,
             name: name.clone(),
             cover_url: None,

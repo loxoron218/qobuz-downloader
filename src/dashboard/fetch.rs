@@ -16,12 +16,12 @@ use {
 use crate::{
     audio_quality::Quality,
     browse::detail_stage::exhibit::resolve_thumbnail_url,
-    dashboard::url_parse::ParsedUrl::{
-        self, Album as ParsedAlbum, Playlist as ParsedPlaylist, Track as ParsedTrack,
-    },
+    dashboard::url_parse::ParsedUrl::{self, Album, Playlist, Track},
     download::progress::{
         DownloadCommand::{self, Enqueue},
-        DownloadItem::{self, Album, Playlist, Track},
+        DownloadItem::{
+            self, Album as DownloadAlbum, Playlist as DownloadPlaylist, Track as DownloadTrack,
+        },
         DownloadTask,
     },
 };
@@ -155,9 +155,9 @@ pub fn fetch_and_enqueue(
     drop(spawn_blocking(move || {
         let api = api_service.lock();
         let meta = match &parsed_spawn {
-            ParsedAlbum(id) => fetch_album_meta(&api, id),
-            ParsedTrack(id) => fetch_track_meta(&api, id.parse::<i32>().unwrap_or(0)),
-            ParsedPlaylist(id) => fetch_playlist_meta(&api, id),
+            Album(id) => fetch_album_meta(&api, id),
+            Track(id) => fetch_track_meta(&api, id.parse::<i32>().unwrap_or(0)),
+            Playlist(id) => fetch_playlist_meta(&api, id),
         };
         drop(api);
         if let Err(e) = tx.send_blocking(meta) {
@@ -188,19 +188,19 @@ pub fn fetch_and_enqueue(
 /// Constructs a `DownloadItem` from a parsed URL and fetched metadata.
 fn build_download_item(parsed: &ParsedUrl, meta: &FetchedMeta) -> DownloadItem {
     match parsed {
-        ParsedAlbum(id) => Album {
+        Album(id) => DownloadAlbum {
             album_id: id.clone(),
             title: meta.title.clone(),
             artist: meta.artist.clone(),
             cover_url: meta.cover_url.clone(),
         },
-        ParsedTrack(id) => Track {
+        Track(id) => DownloadTrack {
             track_id: id.parse::<i32>().unwrap_or(0),
             title: meta.title.clone(),
             artist: meta.artist.clone(),
             cover_url: meta.cover_url.clone(),
         },
-        ParsedPlaylist(id) => Playlist {
+        Playlist(id) => DownloadPlaylist {
             playlist_id: id.clone(),
             title: meta.title.clone(),
             cover_url: meta.cover_url.clone(),

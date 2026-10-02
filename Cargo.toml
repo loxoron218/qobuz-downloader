@@ -7,7 +7,7 @@ version = "0.1.0"
 async-channel = { version = "2.5.0", default-features = false, features = [
     "std",
 ] }
-libadwaita = { version = "0.9.2", features = [
+libadwaita = { version = "0.9.2", default-features = false, features = [
     "gio_v2_80",
     "gtk_v4_24",
     "v1_10",

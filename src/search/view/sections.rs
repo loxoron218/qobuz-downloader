@@ -28,12 +28,13 @@ use crate::{
             SearchScope::All,
         },
         view::{
-            ActivationTarget::{
-                self, Album as TargetAlbum, Artist as TargetArtist, Playlist as TargetPlaylist,
-            },
+            ActivationTarget::{self, Album, Artist, Playlist},
             SearchCategory::{self, Albums, Artists, Playlists, Tracks},
             SearchCtx,
-            SearchResultItem::{self, Album, Artist, Playlist, Track},
+            SearchResultItem::{
+                self, Album as ResultAlbum, Artist as ResultArtist, Playlist as ResultPlaylist,
+                Track,
+            },
             card::create_data_row,
             thumbnails::fetch_missing_images,
         },
@@ -130,7 +131,7 @@ fn populate_album_items(
             .unwrap_or("")
             .to_string();
         let is_explicit = false;
-        items.lock().push(Album {
+        items.lock().push(ResultAlbum {
             id,
             title: title.to_string(),
             artist: artist.to_string(),
@@ -164,7 +165,7 @@ fn populate_artist_items(
         let Some(id) = artist.id else { continue };
         let name = artist.name.as_deref().unwrap_or("Unknown Artist");
         let cover_url = resolve_thumbnail_url(artist.image.as_ref());
-        items.lock().push(Artist {
+        items.lock().push(ResultArtist {
             id,
             name: name.to_string(),
             cover_url,
@@ -192,7 +193,7 @@ fn populate_playlist_items(
         let name = playlist.name.as_deref().unwrap_or("Unknown Playlist");
         let cover_url = playlist.best_image_url(false);
         let is_explicit = false;
-        items.lock().push(Playlist {
+        items.lock().push(ResultPlaylist {
             id,
             name: name.to_string(),
             cover_url,
@@ -266,9 +267,9 @@ fn populate_results(ctx: &SearchCtx, result: &SearchResult, query: &str) {
 const fn item_category(item: &SearchResultItem) -> SearchCategory {
     match item {
         Track { .. } => Tracks,
-        Album { .. } => Albums,
-        Artist { .. } => Artists,
-        Playlist { .. } => Playlists,
+        ResultAlbum { .. } => Albums,
+        ResultArtist { .. } => Artists,
+        ResultPlaylist { .. } => Playlists,
     }
 }
 
@@ -346,9 +347,9 @@ pub fn find_item_at_position(
             continue;
         }
         return match item {
-            Album { id, .. } => Some(TargetAlbum(id.clone())),
-            Artist { id, .. } => Some(TargetArtist(*id)),
-            Playlist { id, .. } => Some(TargetPlaylist(id.clone())),
+            ResultAlbum { id, .. } => Some(Album(id.clone())),
+            ResultArtist { id, .. } => Some(Artist(*id)),
+            ResultPlaylist { id, .. } => Some(Playlist(id.clone())),
             Track { .. } => None,
         };
     }
