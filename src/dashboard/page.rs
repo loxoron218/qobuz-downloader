@@ -11,8 +11,14 @@ use {
     async_channel::{Receiver, Sender},
     libadwaita::{
         ComboRow, EntryRow, HeaderBar, PreferencesGroup, ToastOverlay, ToolbarView,
-        gtk::{Align::Center, Button, Label, StringList},
-        prelude::{BoxExt, ButtonExt, ComboRowExt, EditableExt, PreferencesGroupExt, WidgetExt},
+        glib::Object,
+        gtk::{
+            Align::Center, Button, Label, StringList, accessible::Property::Label as PropertyLabel,
+        },
+        prelude::{
+            AccessibleExtManual, BoxExt, ButtonExt, ComboRowExt, EditableExt, PreferencesGroupExt,
+            WidgetExt,
+        },
     },
     parking_lot::Mutex,
     tracing::{info, warn},
@@ -40,6 +46,18 @@ pub struct DashboardWidgets {
     pub root: ToolbarView,
     /// Header bar widget.
     pub header: HeaderBar,
+}
+
+/// Download control widgets for the dashboard.
+struct DownloadControls {
+    /// Group holding the download rows.
+    group: PreferencesGroup,
+    /// URL entry row.
+    url_entry: EntryRow,
+    /// Quality selector.
+    quality_combo: ComboRow,
+    /// Download action button.
+    download_button: Button,
 }
 
 /// Maps a `ComboRow` selected index to a `Quality` value.
@@ -94,57 +112,38 @@ pub fn build<S: BuildHasher + 'static, R: BuildHasher + 'static>(
     tasks: &Arc<Mutex<HashMap<u64, DownloadTask, S>>>,
     cancel_signals: &Arc<Mutex<HashMap<u64, Arc<AtomicBool>, R>>>,
 ) -> DashboardWidgets {
-    let toolbar = ToolbarView::new();
-    let header = HeaderBar::new();
-    header.set_title_widget(Some(&Label::new(Some("Dashboard"))));
-
+    let title_label = Label::builder()
+        .label("Dashboard")
+        .css_classes(["dashboard-title"])
+        .tooltip_text("Dashboard")
+        .build();
+    let header = HeaderBar::builder()
+        .title_widget(&title_label)
+        .css_classes(["dashboard-header-bar"])
+        .tooltip_text("Dashboard header")
+        .build();
+    let toolbar = ToolbarView::builder()
+        .css_classes(["dashboard-toolbar"])
+        .tooltip_text("Dashboard")
+        .build();
+    toolbar.update_property(&[PropertyLabel("Dashboard")]);
     toolbar.add_top_bar(&header);
 
-    let toast_overlay = ToastOverlay::new();
+    let toast_overlay: ToastOverlay = Object::builder::<ToastOverlay>()
+        .property("css-classes", vec!["dashboard-toast-overlay".to_string()])
+        .property("tooltip-text", "Notification overlay")
+        .build();
 
     let (main_clamp, main_box) = build_content_clamp();
 
-    let download_group = PreferencesGroup::builder()
-        .title("Download")
-        .description("Paste a Qobuz URL or ID to start downloading")
-        .build();
-
-    let url_entry = EntryRow::builder().title("Qobuz URL or ID").build();
-
-    let quality_model = StringList::new(&[
-        "MP3 320kbps",
-        "FLAC 16-bit / 44.1kHz",
-        "FLAC 24-bit / 96kHz",
-        "FLAC 24-bit / 192kHz",
-    ]);
-
-    let default_quality = {
-        let settings = state.settings.lock();
-        settings.default_quality
-    };
-
-    let quality_combo = ComboRow::builder()
-        .title("Audio Quality")
-        .subtitle("Higher quality requires more storage space")
-        .model(&quality_model)
-        .selected(quality_to_combo_index(default_quality))
-        .build();
-
-    let download_button = Button::builder()
-        .label("Download")
-        .css_classes(["suggested-action", "pill"])
-        .halign(Center)
-        .hexpand(true)
-        .margin_top(18)
-        .margin_bottom(18)
-        .margin_start(24)
-        .margin_end(24)
-        .build();
-
+    let download_controls = build_download_controls(state);
+    let download_group = download_controls.group;
+    let url_entry = download_controls.url_entry;
+    let quality_combo = download_controls.quality_combo;
+    let download_button = download_controls.download_button;
     download_group.add(&url_entry);
     download_group.add(&quality_combo);
     download_group.add(&download_button);
-
     main_box.append(&download_group);
 
     let queue_section =
@@ -194,5 +193,70 @@ pub fn build<S: BuildHasher + 'static, R: BuildHasher + 'static>(
     DashboardWidgets {
         root: toolbar,
         header,
+    }
+}
+
+/// Builds the dashboard download group with entry, quality, and button.
+///
+/// # Arguments
+///
+/// * `state` - Shared application state for the default quality.
+///
+/// # Returns
+///
+/// Download control widgets.
+fn build_download_controls(state: &AppState) -> DownloadControls {
+    let download_group = PreferencesGroup::builder()
+        .title("Download")
+        .description("Paste a Qobuz URL or ID to start downloading")
+        .css_classes(["download-group"])
+        .tooltip_text("Download from URL")
+        .build();
+
+    let url_entry = EntryRow::builder()
+        .title("Qobuz URL or ID")
+        .css_classes(["url-entry"])
+        .tooltip_text("Paste a Qobuz album, track, playlist, or artist URL or ID")
+        .build();
+
+    let quality_model = StringList::new(&[
+        "MP3 320kbps",
+        "FLAC 16-bit / 44.1kHz",
+        "FLAC 24-bit / 96kHz",
+        "FLAC 24-bit / 192kHz",
+    ]);
+
+    let default_quality = {
+        let settings = state.settings.lock();
+        settings.default_quality
+    };
+
+    let quality_combo = ComboRow::builder()
+        .title("Audio Quality")
+        .subtitle("Higher quality requires more storage space")
+        .model(&quality_model)
+        .selected(quality_to_combo_index(default_quality))
+        .css_classes(["quality-combo"])
+        .tooltip_text("Select default audio quality")
+        .build();
+
+    let download_button = Button::builder()
+        .label("Download")
+        .css_classes(["suggested-action", "pill", "text-button"])
+        .tooltip_text("Start download")
+        .halign(Center)
+        .hexpand(true)
+        .margin_top(18)
+        .margin_bottom(18)
+        .margin_start(24)
+        .margin_end(24)
+        .build();
+
+    download_button.update_property(&[PropertyLabel("Start download")]);
+    DownloadControls {
+        group: download_group,
+        url_entry,
+        quality_combo,
+        download_button,
     }
 }

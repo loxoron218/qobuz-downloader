@@ -13,7 +13,7 @@ use {
 };
 
 use crate::{
-    app::AppError::{self, NotAuthenticated},
+    app_error::AppError::{self, NotAuthenticated},
     auth::keyring,
 };
 

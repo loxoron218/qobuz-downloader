@@ -6,3 +6,4 @@
 
 pub mod controls;
 pub mod exhibit;
+pub mod track_row;

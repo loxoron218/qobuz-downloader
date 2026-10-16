@@ -8,9 +8,9 @@ use {
         ToastOverlay, ToolbarView,
         gtk::{
             Align::Start, Box, Button, DropDown, Image, Label, Orientation::Vertical,
-            pango::EllipsizeMode::End,
+            accessible::Property::Label as PropertyLabel, pango::EllipsizeMode::End,
         },
-        prelude::{BoxExt, WidgetExt},
+        prelude::{AccessibleExtManual, BoxExt, WidgetExt},
     },
     parking_lot::Mutex,
     qobuz_api::api::content::{albums::Album, tracks::Track},
@@ -20,10 +20,11 @@ use crate::{
     browse::detail_stage::{
         controls::{
             append_separator, append_title_label, append_track_count_duration,
-            build_detail_controls, build_header_scroll, build_item_section, build_track_row,
-            connect_download_click, send_enqueue, wrap_toast_overlay,
+            build_detail_controls, build_header_scroll, build_item_section, connect_download_click,
+            send_enqueue, wrap_toast_overlay,
         },
         exhibit::{load_cover_art, resolve_image_url},
+        track_row::build_track_row,
     },
     download::progress::{DownloadCommand, DownloadItem::Album as AlbumItem, DownloadTask},
     preferences::settings::AppSettings,
@@ -74,9 +75,13 @@ pub fn build_meta(album: &Album) -> AlbumDetailWidgets {
     content.append(&tracks_header);
     content.append(&track_container);
 
-    let loading_label = Label::new(Some("Loading tracks..."));
-    loading_label.add_css_class("dim-label");
-    loading_label.set_xalign(0.0);
+    let loading_label = Label::builder()
+        .label("Loading tracks...")
+        .css_classes(["dim-label"])
+        .tooltip_text("Loading album tracks")
+        .xalign(0.0)
+        .build();
+    loading_label.update_property(&[PropertyLabel("Loading album tracks")]);
     track_container.append(&loading_label);
 
     let toast_overlay = wrap_toast_overlay(&header_scroll);
@@ -132,12 +137,20 @@ pub fn populate_tracks(
 
 /// Builds the album info section with cover art, artist, metadata, and separator.
 fn build_album_info_section(album: &Album) -> Box {
-    let section = Box::new(Vertical, 12);
+    let section = Box::builder()
+        .orientation(Vertical)
+        .spacing(12)
+        .css_classes(["album-info-section"])
+        .tooltip_text("Album information")
+        .build();
 
-    let cover = Image::new();
-    cover.set_pixel_size(250);
-    cover.set_halign(Start);
-    cover.set_valign(Start);
+    let cover = Image::builder()
+        .pixel_size(250)
+        .halign(Start)
+        .valign(Start)
+        .css_classes(["album-cover"])
+        .tooltip_text("Album cover art")
+        .build();
     section.append(&cover);
 
     let cover_url = resolve_image_url(album.image.as_ref());
@@ -168,10 +181,13 @@ fn build_album_info_section(album: &Album) -> Box {
         .copied()
         .collect();
     if !meta_parts.is_empty() {
-        let meta_label = Label::new(Some(&meta_parts.join(" • ")));
-        meta_label.add_css_class("dim-label");
-        meta_label.set_xalign(0.0);
-        meta_label.set_ellipsize(End);
+        let meta_label = Label::builder()
+            .label(meta_parts.join(" • "))
+            .css_classes(["dim-label"])
+            .tooltip_text("Album metadata")
+            .xalign(0.0)
+            .ellipsize(End)
+            .build();
         section.append(&meta_label);
     }
 
@@ -181,6 +197,7 @@ fn build_album_info_section(album: &Album) -> Box {
 
     append_separator(&section);
 
+    section.update_property(&[PropertyLabel("Album information")]);
     section
 }
 

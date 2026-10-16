@@ -11,9 +11,10 @@ use {
         gtk::{
             Align::{Fill, Start},
             Box, Image, Picture,
+            accessible::Property::Label,
             gdk::Texture,
         },
-        prelude::{BoxExt, TextureExt, WidgetExt},
+        prelude::{AccessibleExtManual, BoxExt, TextureExt, WidgetExt},
     },
     qobuz_api::api::content::albums::Image as ModelImage,
     tracing::warn,
@@ -31,17 +32,25 @@ use crate::cover_art::{bytes_to_texture, fetch_image_bytes};
 /// * `section` - Container the cover widgets are appended to.
 /// * `url` - Cover art URL loaded asynchronously when present.
 pub fn build_cover_art(section: &Box, url: Option<String>) {
-    let image = Image::new();
-    image.set_pixel_size(250);
-    image.set_halign(Start);
-    image.set_valign(Start);
+    let image = Image::builder()
+        .pixel_size(250)
+        .halign(Start)
+        .valign(Start)
+        .css_classes(["cover-image"])
+        .tooltip_text("Album cover art")
+        .build();
     section.append(&image);
 
-    let picture = Picture::new();
-    picture.set_hexpand(true);
-    picture.set_halign(Fill);
-    picture.set_size_request(250, 250);
-    picture.set_visible(false);
+    let picture = Picture::builder()
+        .hexpand(true)
+        .halign(Fill)
+        .width_request(250)
+        .height_request(250)
+        .visible(false)
+        .css_classes(["cover-picture"])
+        .tooltip_text("Wide cover art")
+        .build();
+    picture.update_property(&[Label("Wide cover art")]);
     section.append(&picture);
 
     let Some(url) = url else {

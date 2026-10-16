@@ -1,6 +1,7 @@
 //! Qobuz Download GUI application.
 
 pub mod app;
+pub mod app_error;
 pub mod audio_quality;
 pub mod auth;
 pub mod browse;

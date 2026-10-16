@@ -13,9 +13,10 @@ use {
             Align::Start,
             Box, Button, DropDown, GestureClick, Image, Label,
             Orientation::{Horizontal, Vertical},
+            accessible::Property::Label as PropertyLabel,
             pango::EllipsizeMode::End,
         },
-        prelude::{BoxExt, GestureSingleExt, WidgetExt},
+        prelude::{AccessibleExtManual, BoxExt, GestureSingleExt, WidgetExt},
     },
     parking_lot::Mutex,
     qobuz_api::api::{
@@ -30,10 +31,10 @@ use crate::{
         detail_stage::{
             controls::{
                 append_separator, append_title_label, build_detail_controls, build_header_scroll,
-                build_item_section, connect_download_click, format_duration, send_enqueue,
-                wrap_toast_overlay,
+                build_item_section, connect_download_click, send_enqueue, wrap_toast_overlay,
             },
             exhibit::{build_cover_art, load_cover_art, resolve_image_url, strip_html_tags},
+            track_row::format_duration,
         },
     },
     download::progress::{DownloadCommand, DownloadItem::Artist as ItemArtist, DownloadTask},
@@ -109,7 +110,12 @@ pub fn build(
 
 /// Builds the artist info section with name and image.
 fn build_artist_info_section(artist: &Artist) -> Box {
-    let section = Box::new(Vertical, 8);
+    let section = Box::builder()
+        .orientation(Vertical)
+        .spacing(8)
+        .css_classes(["artist-info-section"])
+        .tooltip_text("Artist information")
+        .build();
 
     build_cover_art(
         &section,
@@ -120,9 +126,12 @@ fn build_artist_info_section(artist: &Artist) -> Box {
     append_title_label(&section, name, "title-1");
 
     let albums_count = artist.albums_count.unwrap_or(0);
-    let info_label = Label::new(Some(&format!("{albums_count} albums")));
-    info_label.add_css_class("dim-label");
-    info_label.set_xalign(0.0);
+    let info_label = Label::builder()
+        .label(format!("{albums_count} albums"))
+        .css_classes(["dim-label"])
+        .tooltip_text("Album count")
+        .xalign(0.0)
+        .build();
     section.append(&info_label);
 
     if let Some(bio) = artist
@@ -132,29 +141,41 @@ fn build_artist_info_section(artist: &Artist) -> Box {
     {
         let cleaned = strip_html_tags(bio);
         if !cleaned.is_empty() {
-            let bio_label = Label::new(Some(&cleaned));
-            bio_label.set_xalign(0.0);
-            bio_label.set_wrap(true);
-            bio_label.add_css_class("dim-label");
+            let bio_label = Label::builder()
+                .label(&cleaned)
+                .xalign(0.0)
+                .wrap(true)
+                .css_classes(["dim-label"])
+                .tooltip_text("Artist biography")
+                .build();
             section.append(&bio_label);
         }
     }
 
     append_separator(&section);
 
+    section.update_property(&[PropertyLabel("Artist information")]);
     section
 }
 
 /// Builds a single album row widget with cover art thumbnail.
 fn build_album_row(album: &Album) -> Box {
-    let row = Box::new(Horizontal, 8);
-    row.set_margin_top(4);
-    row.set_margin_bottom(4);
+    let row = Box::builder()
+        .orientation(Horizontal)
+        .spacing(8)
+        .margin_top(4)
+        .margin_bottom(4)
+        .css_classes(["album-row"])
+        .tooltip_text("Album row")
+        .build();
 
-    let cover = Image::new();
-    cover.set_pixel_size(64);
-    cover.set_halign(Start);
-    cover.set_valign(Start);
+    let cover = Image::builder()
+        .pixel_size(64)
+        .halign(Start)
+        .valign(Start)
+        .css_classes(["album-thumbnail"])
+        .tooltip_text("Album cover thumbnail")
+        .build();
 
     let cover_url = resolve_image_url(album.image.as_ref());
     if let Some(url) = cover_url {
@@ -162,15 +183,24 @@ fn build_album_row(album: &Album) -> Box {
     }
     row.append(&cover);
 
-    let info_box = Box::new(Vertical, 2);
-    info_box.set_hexpand(true);
-    info_box.set_valign(Start);
+    let info_box = Box::builder()
+        .orientation(Vertical)
+        .spacing(2)
+        .hexpand(true)
+        .valign(Start)
+        .css_classes(["album-row-info"])
+        .tooltip_text("Album details")
+        .build();
 
     let title = album.title.as_deref().unwrap_or("Unknown Album");
-    let title_label = Label::new(Some(title));
-    title_label.set_xalign(0.0);
-    title_label.set_hexpand(true);
-    title_label.set_ellipsize(End);
+    let title_label = Label::builder()
+        .label(title)
+        .xalign(0.0)
+        .hexpand(true)
+        .ellipsize(End)
+        .css_classes(["album-row-title"])
+        .tooltip_text("Album title")
+        .build();
     info_box.append(&title_label);
 
     let metadata_parts: Vec<String> = {
@@ -191,14 +221,18 @@ fn build_album_row(album: &Album) -> Box {
         parts
     };
     if !metadata_parts.is_empty() {
-        let meta_label = Label::new(Some(&metadata_parts.join(" • ")));
-        meta_label.add_css_class("dim-label");
-        meta_label.set_xalign(0.0);
-        meta_label.set_ellipsize(End);
+        let meta_label = Label::builder()
+            .label(metadata_parts.join(" • "))
+            .css_classes(["dim-label"])
+            .tooltip_text("Album metadata")
+            .xalign(0.0)
+            .ellipsize(End)
+            .build();
         info_box.append(&meta_label);
     }
 
     row.append(&info_box);
+    row.update_property(&[PropertyLabel("Album row")]);
     row
 }
 

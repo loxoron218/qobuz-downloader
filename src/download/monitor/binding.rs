@@ -17,9 +17,10 @@ use {
             Image, Label, ListItem,
             Orientation::{Horizontal, Vertical},
             ProgressBar, SignalListItemFactory,
+            accessible::Property::Label as PropertyLabel,
             pango::EllipsizeMode::End,
         },
-        prelude::{BoxExt, ButtonExt, Cast, ListItemExt, WidgetExt},
+        prelude::{AccessibleExtManual, BoxExt, ButtonExt, Cast, ListItemExt, WidgetExt},
     },
     parking_lot::Mutex,
 };
@@ -29,7 +30,7 @@ use crate::{
     download::{
         monitor::{
             RowContext, clone_row_context,
-            ledger::{refresh_model_item, send_cancel_command},
+            row_commands::{refresh_model_item, send_cancel_command},
             traversal::{
                 first_child_of, first_child_of_box, last_child_of_box, nth_child_of,
                 second_child_of_box, third_child_of_box,
@@ -78,28 +79,41 @@ fn setup_download_row<S: BuildHasher + 'static>(list_item_obj: &Object, ctx: &Ro
         return;
     };
 
-    let main_box = Box::new(Horizontal, 16);
-    main_box.set_margin_top(8);
-    main_box.set_margin_bottom(8);
-    main_box.set_margin_start(16);
-    main_box.set_margin_end(16);
+    let main_box = Box::builder()
+        .orientation(Horizontal)
+        .spacing(16)
+        .margin_top(8)
+        .margin_bottom(8)
+        .margin_start(16)
+        .margin_end(16)
+        .css_classes(["download-row"])
+        .tooltip_text("Download queue row")
+        .build();
+    main_box.update_property(&[PropertyLabel("Download queue row")]);
 
     let cover_image = Image::builder()
         .halign(Start)
         .valign(Center)
+        .pixel_size(72)
+        .css_classes(["download-cover"])
         .tooltip_text("Cover art")
         .build();
-    cover_image.set_pixel_size(72);
 
-    let metadata_box = Box::new(Vertical, 4);
-    metadata_box.set_hexpand(true);
-    metadata_box.set_valign(Center);
+    let metadata_box = Box::builder()
+        .orientation(Vertical)
+        .spacing(4)
+        .hexpand(true)
+        .valign(Center)
+        .css_classes(["download-metadata"])
+        .tooltip_text("Download details")
+        .build();
 
     let title_label = Label::builder()
         .halign(Start)
         .xalign(0.0)
         .ellipsize(End)
         .css_classes(["title-4"])
+        .tooltip_text("Download title")
         .build();
 
     let subtitle_label = Label::builder()
@@ -107,33 +121,49 @@ fn setup_download_row<S: BuildHasher + 'static>(list_item_obj: &Object, ctx: &Ro
         .xalign(0.0)
         .ellipsize(End)
         .css_classes(["dim-label"])
+        .tooltip_text("Download subtitle")
         .build();
 
     let status_label = Label::builder()
         .halign(Start)
         .xalign(0.0)
         .css_classes(["caption"])
+        .tooltip_text("Download status")
         .build();
 
     metadata_box.append(&title_label);
     metadata_box.append(&subtitle_label);
     metadata_box.append(&status_label);
 
-    let progress_bar = ProgressBar::builder().show_text(true).hexpand(true).build();
+    let progress_bar = ProgressBar::builder()
+        .show_text(true)
+        .hexpand(true)
+        .css_classes(["download-progress"])
+        .tooltip_text("Download progress")
+        .build();
 
-    let progress_container = Box::new(Vertical, 4);
-    progress_container.set_hexpand(true);
-    progress_container.set_valign(Center);
+    let progress_container = Box::builder()
+        .orientation(Vertical)
+        .spacing(4)
+        .hexpand(true)
+        .valign(Center)
+        .css_classes(["download-progress-container"])
+        .tooltip_text("Download progress")
+        .build();
     progress_container.append(&progress_bar);
 
     let cancel_button = Button::builder()
         .icon_name("process-stop-symbolic")
         .tooltip_text("Cancel download")
-        .css_classes(["flat", "circular"])
+        .css_classes(["flat", "circular", "image-button"])
         .build();
 
-    let action_container = Box::new(Vertical, 0);
-    action_container.set_valign(Center);
+    let action_container = Box::builder()
+        .orientation(Vertical)
+        .valign(Center)
+        .css_classes(["download-actions"])
+        .tooltip_text("Download actions")
+        .build();
     action_container.append(&cancel_button);
 
     main_box.append(&cover_image);

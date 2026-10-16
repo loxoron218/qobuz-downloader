@@ -7,8 +7,8 @@ use {
     libadwaita::{
         gdk::Texture,
         glib::{MainContext, object::Cast},
-        gtk::{Box, Image, Picture},
-        prelude::{BoxExt, WidgetExt},
+        gtk::{Box, Image, Picture, accessible::Property::Label},
+        prelude::{AccessibleExtManual, BoxExt, WidgetExt},
     },
     parking_lot::Mutex,
     qobuz_api::api::service::QobuzApiService,
@@ -206,9 +206,14 @@ fn set_fallback_icon(picture: &Picture, is_artist: bool) {
     {
         box_.remove(picture);
 
-        let img = Image::from_icon_name(icon);
-        img.set_size_request(64, 64);
-        img.add_css_class("thumbnail");
+        let img = Image::builder()
+            .icon_name(icon)
+            .width_request(64)
+            .height_request(64)
+            .css_classes(["thumbnail"])
+            .tooltip_text("Cover art thumbnail")
+            .build();
+        img.update_property(&[Label("Cover art thumbnail")]);
         box_.prepend(&img);
     }
 }

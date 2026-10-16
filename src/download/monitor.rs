@@ -6,6 +6,7 @@
 
 pub mod binding;
 pub mod ledger;
+pub mod row_commands;
 pub mod traversal;
 
 use std::{

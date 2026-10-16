@@ -7,8 +7,11 @@ use std::{
 
 use libadwaita::{
     Clamp,
-    gtk::{Box, Orientation::Vertical, PolicyType::Automatic, ScrolledWindow},
-    prelude::{BoxExt, WidgetExt},
+    gtk::{
+        Box, Orientation::Vertical, PolicyType::Automatic, ScrolledWindow,
+        accessible::Property::Label,
+    },
+    prelude::{AccessibleExtManual, BoxExt},
 };
 
 /// Debounces repeated events by timestamp, returning true when the gap since the last
@@ -51,12 +54,23 @@ pub fn debounce_elapsed(last_ts: &AtomicU64, min_gap_ms: u64) -> bool {
 /// A tuple of `(Clamp, Box)`.
 #[must_use]
 pub fn build_content_clamp() -> (Clamp, Box) {
-    let main_clamp = Clamp::builder().maximum_size(800).build();
-    let main_box = Box::new(Vertical, 24);
-    main_box.set_margin_top(24);
-    main_box.set_margin_bottom(24);
-    main_box.set_margin_start(24);
-    main_box.set_margin_end(24);
+    let main_clamp = Clamp::builder()
+        .maximum_size(800)
+        .css_classes(["content-clamp"])
+        .tooltip_text("Centered content container")
+        .build();
+    main_clamp.update_property(&[Label("Centered content container")]);
+    let main_box = Box::builder()
+        .orientation(Vertical)
+        .spacing(24)
+        .margin_top(24)
+        .margin_bottom(24)
+        .margin_start(24)
+        .margin_end(24)
+        .css_classes(["content-box"])
+        .tooltip_text("Page content")
+        .build();
+    main_box.update_property(&[Label("Page content")]);
     (main_clamp, main_box)
 }
 
@@ -73,12 +87,21 @@ pub fn build_content_clamp() -> (Clamp, Box) {
 /// A `ScrolledWindow` containing the clamp.
 #[must_use]
 pub fn wrap_clamp_in_scrolled(clamp: &Clamp) -> ScrolledWindow {
-    let wrapper = Box::new(Vertical, 0);
+    let wrapper = Box::builder()
+        .orientation(Vertical)
+        .css_classes(["scrolled-wrapper"])
+        .tooltip_text("Scrollable content wrapper")
+        .build();
+    wrapper.update_property(&[Label("Scrollable content wrapper")]);
     wrapper.append(clamp);
     let scrolled = ScrolledWindow::builder()
         .vexpand(true)
+        .hscrollbar_policy(Automatic)
+        .vscrollbar_policy(Automatic)
         .child(&wrapper)
+        .css_classes(["frame", "content-scrolled-window"])
+        .tooltip_text("Scrollable page")
         .build();
-    scrolled.set_policy(Automatic, Automatic);
+    scrolled.update_property(&[Label("Scrollable page")]);
     scrolled
 }

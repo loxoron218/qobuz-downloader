@@ -2,6 +2,7 @@
 //! Hi-Res and explicit content indicators, inline `SplitButton` for download/queue actions.
 
 pub mod card;
+pub mod card_text;
 pub mod console;
 pub mod sections;
 pub mod thumbnails;
@@ -23,9 +24,12 @@ use {
         glib::Propagation::Proceed,
         gtk::{
             Button, DropDown, EventControllerKey, GestureClick, ListBox, PropagationPhase::Capture,
-            SearchEntry,
+            SearchEntry, accessible::Property::Label,
         },
-        prelude::{ButtonExt, EventControllerExt, GestureSingleExt, ListBoxRowExt, WidgetExt},
+        prelude::{
+            AccessibleExtManual, ButtonExt, EventControllerExt, GestureSingleExt, ListBoxRowExt,
+            WidgetExt,
+        },
     },
     num_traits::AsPrimitive,
     parking_lot::Mutex,
@@ -231,8 +235,10 @@ impl SearchWidgets {
 
         let back_button = Button::builder()
             .icon_name("go-previous-symbolic")
+            .css_classes(["back-button", "image-button"])
             .tooltip_text("Back")
             .build();
+        back_button.update_property(&[Label("Back")]);
 
         let nav_view_clone = navigation_view.clone();
         let back_scope = Arc::clone(&self.scope);

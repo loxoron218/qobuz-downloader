@@ -7,10 +7,10 @@ use {
         ActionRow, ComboRow, PreferencesDialog, PreferencesGroup, PreferencesPage,
         gio::{Cancellable, File},
         glib::{Error, WeakRef},
-        gtk::{Align::Center, Button, FileDialog, StringList, Window},
+        gtk::{Align::Center, Button, FileDialog, StringList, Window, accessible::Property::Label},
         prelude::{
-            ActionRowExt, AdwDialogExt, ButtonExt, ComboRowExt, FileExt, IsA, ObjectExt,
-            PreferencesDialogExt, PreferencesGroupExt, PreferencesPageExt,
+            AccessibleExtManual, ActionRowExt, AdwDialogExt, ButtonExt, ComboRowExt, FileExt, IsA,
+            ObjectExt, PreferencesDialogExt, PreferencesGroupExt, PreferencesPageExt,
         },
     },
     parking_lot::Mutex,
@@ -101,9 +101,16 @@ pub fn build(
     let download_page = PreferencesPage::builder()
         .title("Download Settings")
         .icon_name("folder-download-symbolic")
+        .css_classes(["download-page"])
+        .tooltip_text("Download settings page")
         .build();
+    download_page.update_property(&[Label("Download settings page")]);
 
-    let download_group = PreferencesGroup::builder().title("Download").build();
+    let download_group = PreferencesGroup::builder()
+        .title("Download")
+        .css_classes(["download-group"])
+        .tooltip_text("Download settings")
+        .build();
 
     let dir_path = {
         let settings = state.settings.lock();
@@ -115,11 +122,14 @@ pub fn build(
     let directory_row = ActionRow::builder()
         .title("Download Directory")
         .subtitle(selected_dir.lock().display().to_string())
+        .css_classes(["directory-row"])
+        .tooltip_text("Download directory setting")
         .build();
 
     let browse_button = Button::builder()
         .label("Browse")
-        .css_classes(["flat"])
+        .css_classes(["flat", "text-button"])
+        .tooltip_text("Choose download directory")
         .build();
     directory_row.add_suffix(&browse_button);
 
@@ -142,20 +152,31 @@ pub fn build(
         .subtitle("Quality for downloads from search results")
         .model(&quality_model)
         .selected(quality_to_index(default_quality))
+        .css_classes(["quality-row"])
+        .tooltip_text("Default audio quality")
         .build();
 
     download_group.add(&directory_row);
     download_group.add(&quality_row);
 
-    let credential_group = PreferencesGroup::builder().title("Account").build();
+    let credential_group = PreferencesGroup::builder()
+        .title("Account")
+        .css_classes(["account-group"])
+        .tooltip_text("Account settings")
+        .build();
 
     let logout_button = Button::builder()
         .label("Logout")
-        .css_classes(["destructive-action", "flat"])
+        .css_classes(["destructive-action", "flat", "text-button"])
+        .tooltip_text("Log out of Qobuz")
         .halign(Center)
         .build();
 
-    let logout_row = ActionRow::builder().title("Sign Out").build();
+    let logout_row = ActionRow::builder()
+        .title("Sign Out")
+        .css_classes(["logout-row"])
+        .tooltip_text("Sign out of your account")
+        .build();
     logout_row.add_suffix(&logout_button);
 
     credential_group.add(&logout_row);

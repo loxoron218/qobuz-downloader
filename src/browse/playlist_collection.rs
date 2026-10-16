@@ -6,8 +6,11 @@ use {
     async_channel::Sender,
     libadwaita::{
         ToastOverlay, ToolbarView,
-        gtk::{Box, Button, DropDown, Label, Orientation::Vertical},
-        prelude::{BoxExt, WidgetExt},
+        gtk::{
+            Box, Button, DropDown, Label, Orientation::Vertical,
+            accessible::Property::Label as PropertyLabel,
+        },
+        prelude::{AccessibleExtManual, BoxExt},
     },
     parking_lot::Mutex,
     qobuz_api::api::content::playlists::Playlist,
@@ -17,10 +20,11 @@ use crate::{
     browse::detail_stage::{
         controls::{
             append_separator, append_title_label, append_track_count_duration,
-            build_detail_controls, build_header_scroll, build_item_section, build_track_row,
-            connect_download_click, send_enqueue, wrap_toast_overlay,
+            build_detail_controls, build_header_scroll, build_item_section, connect_download_click,
+            send_enqueue, wrap_toast_overlay,
         },
         exhibit::{build_cover_art, strip_html_tags},
+        track_row::build_track_row,
     },
     download::progress::{DownloadCommand, DownloadItem::Playlist as PlaylistItem, DownloadTask},
     preferences::settings::AppSettings,
@@ -87,7 +91,12 @@ pub fn build(
 
 /// Builds the playlist info section with cover art, creator, metadata, and description.
 fn build_playlist_info_section(playlist: &Playlist) -> Box {
-    let section = Box::new(Vertical, 12);
+    let section = Box::builder()
+        .orientation(Vertical)
+        .spacing(12)
+        .css_classes(["playlist-info-section"])
+        .tooltip_text("Playlist information")
+        .build();
 
     build_cover_art(&section, playlist.best_image_url(true));
 
@@ -104,10 +113,14 @@ fn build_playlist_info_section(playlist: &Playlist) -> Box {
     if let Some(desc) = playlist.description.as_deref().filter(|d| !d.is_empty()) {
         let cleaned = strip_html_tags(desc);
         if !cleaned.is_empty() {
-            let desc_label = Label::new(Some(&cleaned));
-            desc_label.set_xalign(0.0);
-            desc_label.set_wrap(true);
-            desc_label.add_css_class("dim-label");
+            let desc_label = Label::builder()
+                .label(&cleaned)
+                .xalign(0.0)
+                .wrap(true)
+                .css_classes(["dim-label"])
+                .tooltip_text("Playlist description")
+                .build();
+            desc_label.update_property(&[PropertyLabel("Playlist description")]);
             section.append(&desc_label);
         }
     }

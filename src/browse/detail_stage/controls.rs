@@ -9,23 +9,25 @@ use {
     async_channel::Sender,
     libadwaita::{
         HeaderBar, Toast, ToastOverlay, ToolbarView,
+        glib::Object,
         gtk::{
             Align::{Center, Start},
-            Box, Button, DropDown, Image, Label,
+            Box, Button, DropDown, Label,
             Orientation::{Horizontal, Vertical},
             PolicyType::Automatic,
-            ScrolledWindow, Widget,
+            ScrolledWindow, StringList, Widget,
+            accessible::Property::Label as PropertyLabel,
             pango::EllipsizeMode::End,
         },
-        prelude::{BoxExt, ButtonExt, WidgetExt},
+        prelude::{AccessibleExtManual, BoxExt, ButtonExt, WidgetExt},
     },
     parking_lot::Mutex,
-    qobuz_api::api::content::tracks::Track,
     tracing::error,
 };
 
 use crate::{
     audio_quality::Quality::{self, Flac16_44, Flac24_96, Flac24_192, Mp3_320},
+    browse::detail_stage::track_row::format_duration,
     download::progress::{
         DownloadCommand::{self, Enqueue},
         DownloadTask,
@@ -53,25 +55,44 @@ pub struct HeaderScrollWidgets {
 /// * `HeaderScrollWidgets` - Toolbar and content box for the detail view.
 #[must_use]
 pub fn build_header_scroll(title: &str) -> HeaderScrollWidgets {
-    let toolbar = ToolbarView::new();
-    let header = HeaderBar::new();
-    let title_label = Label::new(Some(title));
-    title_label.add_css_class("title");
-    title_label.set_ellipsize(End);
-    header.set_title_widget(Some(&title_label));
+    let title_label = Label::builder()
+        .label(title)
+        .css_classes(["title"])
+        .tooltip_text("Detail view title")
+        .ellipsize(End)
+        .build();
+    title_label.update_property(&[PropertyLabel("Detail view title")]);
+    let header = HeaderBar::builder()
+        .title_widget(&title_label)
+        .css_classes(["detail-header-bar"])
+        .tooltip_text("Detail header")
+        .build();
+    let toolbar = ToolbarView::builder()
+        .css_classes(["detail-toolbar"])
+        .tooltip_text("Detail view")
+        .build();
     toolbar.add_top_bar(&header);
 
-    let scrolled = ScrolledWindow::new();
-    scrolled.set_vexpand(true);
-    scrolled.set_policy(Automatic, Automatic);
+    let content = Box::builder()
+        .orientation(Vertical)
+        .spacing(12)
+        .margin_top(24)
+        .margin_bottom(24)
+        .margin_start(24)
+        .margin_end(24)
+        .css_classes(["detail-content"])
+        .tooltip_text("Detail content")
+        .build();
+    content.update_property(&[PropertyLabel("Detail content")]);
 
-    let content = Box::new(Vertical, 12);
-    content.set_margin_top(24);
-    content.set_margin_bottom(24);
-    content.set_margin_start(24);
-    content.set_margin_end(24);
-
-    scrolled.set_child(Some(&content));
+    let scrolled = ScrolledWindow::builder()
+        .vexpand(true)
+        .hscrollbar_policy(Automatic)
+        .vscrollbar_policy(Automatic)
+        .child(&content)
+        .css_classes(["frame", "detail-scrolled-window"])
+        .tooltip_text("Scrollable detail content")
+        .build();
     toolbar.set_content(Some(&scrolled));
 
     HeaderScrollWidgets { toolbar, content }
@@ -88,7 +109,11 @@ pub fn build_header_scroll(title: &str) -> HeaderScrollWidgets {
 /// * `ToastOverlay` - Overlay now holding the previous toolbar content.
 #[must_use]
 pub fn wrap_toast_overlay(header_scroll: &HeaderScrollWidgets) -> ToastOverlay {
-    let toast_overlay = ToastOverlay::new();
+    let toast_overlay: ToastOverlay = Object::builder::<ToastOverlay>()
+        .property("css-classes", vec!["detail-toast-overlay".to_string()])
+        .property("tooltip-text", "Notification overlay")
+        .build();
+    toast_overlay.update_property(&[PropertyLabel("Notification overlay")]);
     if let Some(child) = header_scroll.toolbar.content() {
         header_scroll.toolbar.set_content(None::<&Widget>);
         toast_overlay.set_child(Some(&child));
@@ -105,11 +130,15 @@ pub fn wrap_toast_overlay(header_scroll: &HeaderScrollWidgets) -> ToastOverlay {
 /// * `text` - Label text.
 /// * `css_class` - CSS class applied to the label.
 pub fn append_title_label(parent: &Box, text: &str, css_class: &str) {
-    let label = Label::new(Some(text));
-    label.add_css_class(css_class);
-    label.set_xalign(0.0);
-    label.set_hexpand(true);
-    label.set_ellipsize(End);
+    let label = Label::builder()
+        .label(text)
+        .css_classes([css_class])
+        .tooltip_text(text)
+        .xalign(0.0)
+        .hexpand(true)
+        .ellipsize(End)
+        .build();
+    label.update_property(&[PropertyLabel(text)]);
     parent.append(&label);
 }
 
@@ -120,13 +149,19 @@ pub fn append_title_label(parent: &Box, text: &str, css_class: &str) {
 /// * `DropDown` - Dropdown with the supported download qualities.
 #[must_use]
 pub fn build_quality_dropdown() -> DropDown {
-    let dropdown = DropDown::from_strings(&[
+    let model = StringList::new(&[
         "MP3 320kbps",
         "FLAC 16-bit / 44.1kHz",
         "FLAC 24-bit / 96kHz",
         "FLAC 24-bit / 192kHz",
     ]);
-    dropdown.set_selected(1);
+    let dropdown = DropDown::builder()
+        .model(&model)
+        .selected(1)
+        .css_classes(["quality-dropdown"])
+        .tooltip_text("Select download quality")
+        .build();
+    dropdown.update_property(&[PropertyLabel("Download quality selector")]);
     dropdown
 }
 
@@ -142,14 +177,24 @@ pub fn build_quality_dropdown() -> DropDown {
 /// * `Box` - Horizontal row holding the label and dropdown.
 #[must_use]
 pub fn build_quality_row(dropdown: &DropDown, valign_center: bool) -> Box {
-    let quality_row = Box::new(Horizontal, 8);
+    let quality_row = Box::builder()
+        .orientation(Horizontal)
+        .spacing(8)
+        .css_classes(["quality-row"])
+        .tooltip_text("Download quality options")
+        .build();
     if valign_center {
         quality_row.set_valign(Center);
     } else {
         quality_row.set_valign(Start);
     }
-    let ql = Label::new(Some("Quality:"));
-    ql.set_xalign(0.0);
+    quality_row.update_property(&[PropertyLabel("Download quality options")]);
+    let ql = Label::builder()
+        .label("Quality:")
+        .css_classes(["quality-label"])
+        .tooltip_text("Quality selector label")
+        .xalign(0.0)
+        .build();
     quality_row.append(&ql);
     quality_row.append(dropdown);
     quality_row
@@ -166,11 +211,14 @@ pub fn build_quality_row(dropdown: &DropDown, valign_center: bool) -> Box {
 /// * `Button` - Styled download button.
 #[must_use]
 pub fn build_download_button(label: &str) -> Button {
-    Button::builder()
+    let button = Button::builder()
         .label(label)
-        .css_classes(["suggested-action", "pill"])
+        .css_classes(["suggested-action", "pill", "text-button"])
+        .tooltip_text("Download selected quality")
         .halign(Start)
-        .build()
+        .build();
+    button.update_property(&[PropertyLabel("Download button")]);
+    button
 }
 
 /// Builds a section header label and item container.
@@ -185,13 +233,23 @@ pub fn build_download_button(label: &str) -> Button {
 /// * `(Label, Box)` - Header label and vertical item container.
 #[must_use]
 pub fn build_item_section(header_text: &str, spacing: i32) -> (Label, Box) {
-    let header = Label::new(Some(header_text));
-    header.add_css_class("heading");
-    header.set_xalign(0.0);
-    header.set_margin_top(12);
+    let header = Label::builder()
+        .label(header_text)
+        .css_classes(["heading"])
+        .tooltip_text(header_text)
+        .xalign(0.0)
+        .margin_top(12)
+        .build();
+    header.update_property(&[PropertyLabel(header_text)]);
 
-    let container = Box::new(Vertical, spacing);
-    container.set_margin_top(4);
+    let container = Box::builder()
+        .orientation(Vertical)
+        .spacing(spacing)
+        .margin_top(4)
+        .css_classes(["item-section"])
+        .tooltip_text("Item list")
+        .build();
+    container.update_property(&[PropertyLabel("Item list")]);
 
     (header, container)
 }
@@ -202,8 +260,12 @@ pub fn build_item_section(header_text: &str, spacing: i32) -> (Label, Box) {
 ///
 /// * `section` - Section the separator is appended to.
 pub fn append_separator(section: &Box) {
-    let separator = Label::new(Some(""));
-    separator.add_css_class("separator");
+    let separator = Label::builder()
+        .label("")
+        .css_classes(["separator"])
+        .tooltip_text("Section separator")
+        .build();
+    separator.update_property(&[PropertyLabel("Section separator")]);
     section.append(&separator);
 }
 
@@ -220,10 +282,14 @@ pub fn append_track_count_duration(section: &Box, track_count: i32, total_durati
     } else {
         format!("{track_count} tracks")
     };
-    let info_label = Label::new(Some(&duration_str));
-    info_label.add_css_class("dim-label");
-    info_label.set_xalign(0.0);
-    info_label.set_ellipsize(End);
+    let info_label = Label::builder()
+        .label(&duration_str)
+        .css_classes(["dim-label"])
+        .tooltip_text("Track count and duration")
+        .xalign(0.0)
+        .ellipsize(End)
+        .build();
+    info_label.update_property(&[PropertyLabel("Track count and duration")]);
     section.append(&info_label);
 }
 
@@ -246,22 +312,6 @@ pub const fn quality_from_index(index: u32) -> Quality {
     }
 }
 
-/// Formats duration in seconds to MM:SS.
-///
-/// # Arguments
-///
-/// * `seconds` - Duration in seconds.
-///
-/// # Returns
-///
-/// * `String` - Duration formatted as minutes and zero-padded seconds.
-#[must_use]
-pub fn format_duration(seconds: i32) -> String {
-    let mins = seconds / 60;
-    let secs = seconds % 60;
-    format!("{mins}:{secs:02}")
-}
-
 /// Sends a download task to the queue.
 ///
 /// # Arguments
@@ -272,66 +322,6 @@ pub fn send_enqueue(cmd_sender: &Sender<DownloadCommand>, task: DownloadTask) {
     if let Err(e) = cmd_sender.send_blocking(Enqueue { task }) {
         error!(error = %e, "Failed to enqueue download task");
     }
-}
-
-/// Builds a single track row widget.
-///
-/// # Arguments
-///
-/// * `track` - Track metadata shown in the row.
-///
-/// # Returns
-///
-/// * `Box` - Horizontal row with disc, number, title, duration, and Hi-Res marker.
-#[must_use]
-pub fn build_track_row(track: &Track) -> Box {
-    let row = Box::new(Horizontal, 8);
-    row.set_margin_top(4);
-    row.set_margin_bottom(4);
-
-    let disc_num = track.media_number.unwrap_or(1);
-    let disc_label = Label::new(Some(&disc_num.to_string()));
-    disc_label.set_xalign(0.0);
-    disc_label.set_width_chars(3);
-    disc_label.add_css_class("dim-label");
-    row.append(&disc_label);
-
-    let track_num = track.track_number.unwrap_or(0);
-    let num_label = Label::new(Some(&format!("{track_num:02}.")));
-    num_label.set_xalign(0.0);
-    num_label.set_width_chars(4);
-    num_label.add_css_class("dim-label");
-    row.append(&num_label);
-
-    let title = track.title.as_deref().unwrap_or("Unknown Track");
-    let title_label = Label::new(Some(title));
-    title_label.set_hexpand(true);
-    title_label.set_xalign(0.0);
-    title_label.set_ellipsize(End);
-    row.append(&title_label);
-
-    let duration = track.duration.unwrap_or(0);
-    let dur_label = Label::new(Some(&format_duration(duration)));
-    dur_label.add_css_class("dim-label");
-    dur_label.set_xalign(1.0);
-    row.append(&dur_label);
-
-    let is_hires = track.hires.unwrap_or(false)
-        || track.maximum_bit_depth.unwrap_or(0) >= 24
-        || track.maximum_sampling_rate.unwrap_or(0.0) > 48.0;
-    if is_hires {
-        let hires_icon = Image::builder()
-            .halign(Center)
-            .valign(Center)
-            .tooltip_text("Hi-Res Audio")
-            .pixel_size(16)
-            .build();
-        hires_icon.set_from_file(Some("./assets/hires.png"));
-        hires_icon.set_margin_start(8);
-        row.append(&hires_icon);
-    }
-
-    row
 }
 
 /// Builds quality dropdown row and download button, appending them to content.

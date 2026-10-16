@@ -6,31 +6,41 @@ use {
     async_channel::Sender,
     libadwaita::{
         EntryRow, PasswordEntryRow, PreferencesGroup,
-        gio::spawn_blocking,
         glib::clone,
         gtk::{
             Align::{Center, Start},
             Box, Button, CheckButton, Label,
             Orientation::Vertical,
             Stack,
+            accessible::Property::Label as PropertyLabel,
         },
-        prelude::{BoxExt, ButtonExt, CheckButtonExt, EditableExt, PreferencesGroupExt, WidgetExt},
+        prelude::{AccessibleExtManual, BoxExt, ButtonExt, CheckButtonExt, PreferencesGroupExt},
     },
-    parking_lot::Mutex,
-    qobuz_api::api::service::QobuzApiService,
-    tracing::warn,
 };
 
 use crate::{
     app::AppState,
     auth::{
         login_form::LoginMethod::{EmailPassword, Token},
-        session::{
-            AuthEvent::{self, Authenticated, AuthenticationFailed},
-            perform_login, perform_token_login,
-        },
+        login_handlers::{handle_email_login, handle_token_login},
+        session::AuthEvent,
     },
 };
+
+/// Credential input widgets for both login methods.
+#[derive(Clone, Debug)]
+struct CredentialFields {
+    /// Stack switching between email and token sections.
+    stack: Stack,
+    /// Email entry row.
+    email_row: EntryRow,
+    /// Password entry row.
+    password_row: PasswordEntryRow,
+    /// User ID entry row.
+    user_id_row: EntryRow,
+    /// Auth token entry row.
+    auth_token_row: PasswordEntryRow,
+}
 
 /// Login method selected by the user.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -70,89 +80,95 @@ pub struct LoginWidgets {
 /// * `sender` - Channel sender for auth events to the GUI thread
 #[must_use]
 pub fn build(state: &AppState, sender: Sender<AuthEvent>) -> LoginWidgets {
-    let content = Box::new(Vertical, 18);
-    content.set_margin_top(36);
-    content.set_margin_bottom(36);
-    content.set_margin_start(36);
-    content.set_margin_end(36);
-    content.set_valign(Center);
+    let content = Box::builder()
+        .orientation(Vertical)
+        .spacing(18)
+        .margin_top(36)
+        .margin_bottom(36)
+        .margin_start(36)
+        .margin_end(36)
+        .valign(Center)
+        .css_classes(["login-content"])
+        .tooltip_text("Login form")
+        .build();
+    content.update_property(&[PropertyLabel("Login form")]);
 
-    let title = Label::new(Some("Qobuz"));
-    title.add_css_class("title-1");
+    let title = Label::builder()
+        .label("Qobuz")
+        .css_classes(["title-1"])
+        .tooltip_text("Application name")
+        .build();
     content.append(&title);
 
-    let subtitle = Label::new(Some("Enter your credentials to get started"));
-    subtitle.add_css_class("subtitle");
+    let subtitle = Label::builder()
+        .label("Enter your credentials to get started")
+        .css_classes(["subtitle"])
+        .tooltip_text("Login instructions")
+        .build();
     content.append(&subtitle);
 
-    let spacer = Box::new(Vertical, 0);
-    spacer.set_vexpand(true);
+    let spacer = Box::builder()
+        .orientation(Vertical)
+        .vexpand(true)
+        .css_classes(["login-spacer"])
+        .tooltip_text("Spacer")
+        .build();
     content.append(&spacer);
 
-    let selection_label = Label::new(Some("Authentication Method"));
-    selection_label.set_halign(Start);
-    selection_label.add_css_class("heading");
+    let selection_label = Label::builder()
+        .label("Authentication Method")
+        .halign(Start)
+        .css_classes(["heading"])
+        .tooltip_text("Choose an authentication method")
+        .build();
     content.append(&selection_label);
 
-    let email_radio = CheckButton::with_label("Email/Username and Password");
-    email_radio.set_active(true);
-    let token_radio = CheckButton::with_label("User ID and Auth Token");
+    let email_radio = CheckButton::builder()
+        .label("Email/Username and Password")
+        .active(true)
+        .css_classes(["login-radio", "text-button"])
+        .tooltip_text("Log in with email and password")
+        .build();
+    let token_radio = CheckButton::builder()
+        .label("User ID and Auth Token")
+        .css_classes(["login-radio", "text-button"])
+        .tooltip_text("Log in with user ID and auth token")
+        .build();
     email_radio.set_group(Some(&token_radio));
 
-    let radio_box = Box::new(Vertical, 6);
+    let radio_box = Box::builder()
+        .orientation(Vertical)
+        .spacing(6)
+        .css_classes(["login-radio-box"])
+        .tooltip_text("Authentication method options")
+        .build();
     radio_box.append(&email_radio);
     radio_box.append(&token_radio);
     content.append(&radio_box);
 
-    let email_preferences_group = PreferencesGroup::builder()
-        .title("Email/Username and Password")
-        .build();
-
-    let email_row = EntryRow::builder()
-        .title("Email or Username")
-        .show_apply_button(false)
-        .build();
-    email_preferences_group.add(&email_row);
-
-    let password_row = PasswordEntryRow::builder().title("Password").build();
-    email_preferences_group.add(&password_row);
-
-    let email_section = Box::new(Vertical, 16);
-    email_section.append(&email_preferences_group);
-
-    let token_preferences_group = PreferencesGroup::builder()
-        .title("User ID and Auth Token")
-        .build();
-
-    let user_id_row = EntryRow::builder()
-        .title("User ID")
-        .show_apply_button(false)
-        .build();
-    token_preferences_group.add(&user_id_row);
-
-    let auth_token_row = PasswordEntryRow::builder().title("Auth Token").build();
-    token_preferences_group.add(&auth_token_row);
-
-    let token_section = Box::new(Vertical, 16);
-    token_section.append(&token_preferences_group);
-
-    let credential_stack = Stack::new();
-    drop(credential_stack.add_named(&email_section, Some("email")));
-    drop(credential_stack.add_named(&token_section, Some("token")));
-    credential_stack.set_visible_child_name("email");
+    let credentials = build_credential_stack();
+    let email_row = credentials.email_row;
+    let password_row = credentials.password_row;
+    let user_id_row = credentials.user_id_row;
+    let auth_token_row = credentials.auth_token_row;
+    let credential_stack = credentials.stack;
     content.append(&credential_stack);
 
     connect_toggle_handlers(&email_radio, &token_radio, &credential_stack);
 
-    let error_label = Label::new(None);
-    error_label.add_css_class("error");
-    error_label.set_visible(false);
+    let error_label = Label::builder()
+        .css_classes(["error"])
+        .tooltip_text("Login error message")
+        .visible(false)
+        .build();
     content.append(&error_label);
 
-    let submit_button = Button::with_label("Sign In");
-    submit_button.add_css_class("suggested-action");
-    submit_button.add_css_class("pill");
-    submit_button.set_halign(Center);
+    let submit_button = Button::builder()
+        .label("Sign In")
+        .halign(Center)
+        .css_classes(["suggested-action", "pill", "text-button"])
+        .tooltip_text("Sign in to Qobuz")
+        .build();
     content.append(&submit_button);
 
     let widgets = LoginWidgets {
@@ -169,6 +185,87 @@ pub fn build(state: &AppState, sender: Sender<AuthEvent>) -> LoginWidgets {
     connect_submit_handler(state, sender, &widgets);
 
     widgets
+}
+
+/// Builds the credential stack with email and token sections.
+///
+/// # Returns
+///
+/// Credential input widgets for both login methods.
+fn build_credential_stack() -> CredentialFields {
+    let email_preferences_group = PreferencesGroup::builder()
+        .title("Email/Username and Password")
+        .css_classes(["login-group"])
+        .tooltip_text("Email login credentials")
+        .build();
+
+    let email_row = EntryRow::builder()
+        .title("Email or Username")
+        .show_apply_button(false)
+        .css_classes(["login-entry"])
+        .tooltip_text("Enter your email or username")
+        .build();
+    email_preferences_group.add(&email_row);
+
+    let password_row = PasswordEntryRow::builder()
+        .title("Password")
+        .css_classes(["login-entry", "password"])
+        .tooltip_text("Enter your password")
+        .build();
+    email_preferences_group.add(&password_row);
+
+    let email_section = Box::builder()
+        .orientation(Vertical)
+        .spacing(16)
+        .css_classes(["login-section"])
+        .tooltip_text("Email login section")
+        .build();
+    email_section.append(&email_preferences_group);
+
+    let token_preferences_group = PreferencesGroup::builder()
+        .title("User ID and Auth Token")
+        .css_classes(["login-group"])
+        .tooltip_text("Token login credentials")
+        .build();
+
+    let user_id_row = EntryRow::builder()
+        .title("User ID")
+        .show_apply_button(false)
+        .css_classes(["login-entry"])
+        .tooltip_text("Enter your user ID")
+        .build();
+    token_preferences_group.add(&user_id_row);
+
+    let auth_token_row = PasswordEntryRow::builder()
+        .title("Auth Token")
+        .css_classes(["login-entry", "password"])
+        .tooltip_text("Enter your auth token")
+        .build();
+    token_preferences_group.add(&auth_token_row);
+
+    let token_section = Box::builder()
+        .orientation(Vertical)
+        .spacing(16)
+        .css_classes(["login-section"])
+        .tooltip_text("Token login section")
+        .build();
+    token_section.append(&token_preferences_group);
+
+    let credential_stack = Stack::builder()
+        .css_classes(["login-stack"])
+        .tooltip_text("Credential input")
+        .build();
+    drop(credential_stack.add_named(&email_section, Some("email")));
+    drop(credential_stack.add_named(&token_section, Some("token")));
+    credential_stack.set_visible_child_name("email");
+    credential_stack.update_property(&[PropertyLabel("Credential input")]);
+    CredentialFields {
+        stack: credential_stack,
+        email_row,
+        password_row,
+        user_id_row,
+        auth_token_row,
+    }
 }
 
 /// Returns which login method is currently selected.
@@ -266,88 +363,4 @@ fn connect_submit_handler(state: &AppState, sender: Sender<AuthEvent>, widgets: 
         }
     ));
     for _ in [black_box(submit_handler)] {}
-}
-
-/// Handles email/password login submission.
-fn handle_email_login(
-    email_row: &EntryRow,
-    password_row: &PasswordEntryRow,
-    error_label: &Label,
-    submit_button: &Button,
-    sender: &Sender<AuthEvent>,
-    api_service: &Arc<Mutex<QobuzApiService>>,
-) {
-    let email = email_row.text().to_string();
-    let password = password_row.text().to_string();
-
-    if email.is_empty() || password.is_empty() {
-        error_label.set_text("Email and password are required");
-        error_label.set_visible(true);
-        return;
-    }
-
-    error_label.set_visible(false);
-    submit_button.set_sensitive(false);
-    email_row.set_sensitive(false);
-    password_row.set_sensitive(false);
-
-    let sender = sender.clone();
-    let api_service = Arc::clone(api_service);
-    drop(spawn_blocking(move || {
-        let result = perform_login(&api_service, &email, &password);
-        let event = match result {
-            Ok(user_id) => Authenticated { user_id },
-            Err(err) => {
-                warn!(error = %err, "Login failed");
-                AuthenticationFailed {
-                    error: format!("{err}"),
-                }
-            }
-        };
-        if let Err(err) = sender.send_blocking(event) {
-            warn!(error = %err, "Failed to send auth event, receiver likely dropped");
-        }
-    }));
-}
-
-/// Handles user ID/token login submission.
-fn handle_token_login(
-    user_id_row: &EntryRow,
-    auth_token_row: &PasswordEntryRow,
-    error_label: &Label,
-    submit_button: &Button,
-    sender: &Sender<AuthEvent>,
-    api_service: &Arc<Mutex<QobuzApiService>>,
-) {
-    let user_id = user_id_row.text().to_string();
-    let auth_token = auth_token_row.text().to_string();
-
-    if user_id.is_empty() || auth_token.is_empty() {
-        error_label.set_text("User ID and auth token are required");
-        error_label.set_visible(true);
-        return;
-    }
-
-    error_label.set_visible(false);
-    submit_button.set_sensitive(false);
-    user_id_row.set_sensitive(false);
-    auth_token_row.set_sensitive(false);
-
-    let sender = sender.clone();
-    let api_service = Arc::clone(api_service);
-    drop(spawn_blocking(move || {
-        let result = perform_token_login(&api_service, &user_id, &auth_token);
-        let event = match result {
-            Ok(user_id) => Authenticated { user_id },
-            Err(err) => {
-                warn!(error = %err, "Token login failed");
-                AuthenticationFailed {
-                    error: format!("{err}"),
-                }
-            }
-        };
-        if let Err(err) = sender.send_blocking(event) {
-            warn!(error = %err, "Failed to send auth event, receiver likely dropped");
-        }
-    }));
 }

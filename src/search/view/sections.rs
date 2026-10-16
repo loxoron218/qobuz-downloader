@@ -12,9 +12,9 @@ use {
         glib::MainContext,
         gtk::{
             Align::Start, Box, GestureClick, Image, Label, ListBox, ListBoxRow,
-            Orientation::Horizontal,
+            Orientation::Horizontal, accessible::Property::Label as PropertyLabel,
         },
-        prelude::{BoxExt, ListBoxRowExt, WidgetExt},
+        prelude::{AccessibleExtManual, BoxExt, WidgetExt},
     },
     parking_lot::Mutex,
     qobuz_api::api::content::catalog::SearchResult,
@@ -43,28 +43,43 @@ use crate::{
 
 /// Creates a section header row with a ">" navigation button for scope filtering.
 fn create_section_header(category: SearchCategory, ctx: &SearchCtx) -> ListBoxRow {
-    let label = Label::new(Some(category.label()));
-    label.set_xalign(0.0);
-    label.add_css_class("heading");
-    label.set_margin_start(12);
-    label.set_margin_end(6);
-    label.set_margin_top(12);
-    label.set_margin_bottom(6);
-    label.set_hexpand(true);
+    let label = Label::builder()
+        .label(category.label())
+        .xalign(0.0)
+        .hexpand(true)
+        .margin_start(12)
+        .margin_end(6)
+        .margin_top(12)
+        .margin_bottom(6)
+        .css_classes(["heading"])
+        .tooltip_text("Search section")
+        .build();
 
-    let arrow = Image::from_icon_name("go-next-symbolic");
-    arrow.set_margin_end(12);
-    arrow.set_margin_top(12);
-    arrow.set_margin_bottom(6);
+    let arrow = Image::builder()
+        .icon_name("go-next-symbolic")
+        .margin_end(12)
+        .margin_top(12)
+        .margin_bottom(6)
+        .css_classes(["section-arrow"])
+        .tooltip_text("Filter by section")
+        .build();
 
-    let header_box = Box::new(Horizontal, 0);
+    let header_box = Box::builder()
+        .orientation(Horizontal)
+        .css_classes(["section-header"])
+        .tooltip_text("Section header")
+        .build();
     header_box.append(&label);
     header_box.append(&arrow);
 
-    let row = ListBoxRow::new();
-    row.set_activatable(false);
-    row.set_selectable(false);
-    row.set_child(Some(&header_box));
+    let row = ListBoxRow::builder()
+        .child(&header_box)
+        .activatable(false)
+        .selectable(false)
+        .css_classes(["section-header-row"])
+        .tooltip_text("Section header")
+        .build();
+    row.update_property(&[PropertyLabel("Section header")]);
 
     let scope_selector = ctx.scope_selector.clone();
     let scope_category = category;
@@ -209,12 +224,14 @@ fn show_empty_search_state(list_box: &ListBox, query: &str) {
             "No results found for \"{query}\". Try a different search term."
         ))
         .css_classes(["dim-label"])
+        .tooltip_text("No search results")
         .halign(Start)
         .margin_top(24)
         .margin_start(16)
         .margin_end(16)
         .wrap(true)
         .build();
+    empty_label.update_property(&[PropertyLabel("No search results")]);
     list_box.append(&empty_label);
 }
 

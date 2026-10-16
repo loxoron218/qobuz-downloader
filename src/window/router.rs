@@ -5,8 +5,11 @@ use std::{collections::HashMap, sync::Arc};
 use {
     async_channel::{Receiver, Sender},
     libadwaita::{
-        HeaderBar, NavigationPage, NavigationView, ToolbarView, gio::spawn_blocking,
-        glib::MainContext, prelude::WidgetExt,
+        HeaderBar, NavigationPage, NavigationView, ToolbarView,
+        gio::spawn_blocking,
+        glib::MainContext,
+        gtk::accessible::Property::Label,
+        prelude::{AccessibleExtManual, WidgetExt},
     },
     tracing::{error, info, warn},
 };
@@ -178,7 +181,13 @@ fn handle_browse_event(
             let album_id = album.id.clone().unwrap_or_default();
             let widgets = build_meta(&album);
             drop(pending_albums.insert(album_id, widgets.clone()));
-            let page = NavigationPage::new(&widgets.root, "Album");
+            let page = NavigationPage::builder()
+                .child(&widgets.root)
+                .tag("Album")
+                .css_classes(["album-page"])
+                .tooltip_text("Album details")
+                .build();
+            page.update_property(&[Label("Album details")]);
             nav_view.push(&page);
         }
         AlbumTracks { album, tracks } => {
@@ -201,7 +210,12 @@ fn handle_browse_event(
                 Arc::clone(&state.settings),
                 cmd_sender.clone(),
             );
-            let page = NavigationPage::new(&root, "Playlist");
+            let page = NavigationPage::builder()
+                .child(&root)
+                .tag("Playlist")
+                .css_classes(["playlist-page"])
+                .tooltip_text("Playlist details")
+                .build();
             nav_view.push(&page);
         }
         Artist { artist, albums } => {
@@ -213,7 +227,12 @@ fn handle_browse_event(
                 &state.api_service,
                 browse_sender,
             );
-            let page = NavigationPage::new(&root, "Artist");
+            let page = NavigationPage::builder()
+                .child(&root)
+                .tag("Artist")
+                .css_classes(["artist-page"])
+                .tooltip_text("Artist details")
+                .build();
             nav_view.push(&page);
         }
         Error { context, error } => {

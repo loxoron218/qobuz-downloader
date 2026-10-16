@@ -25,15 +25,22 @@ use {
             Orientation::{Horizontal, Vertical},
             PolicyType::Automatic,
             ScrolledWindow, Stack,
+            accessible::Property::Label as PropertyLabel,
         },
-        prelude::{BoxExt, ButtonExt, Cast, ListModelExt, PreferencesGroupExt, WidgetExt},
+        prelude::{
+            AccessibleExtManual, BoxExt, ButtonExt, ListModelExt, PreferencesGroupExt, WidgetExt,
+        },
     },
     parking_lot::Mutex,
     tracing::{error, warn},
 };
 
 use crate::download::{
-    monitor::{QueueSection, binding::setup_download_queue_factory},
+    monitor::{
+        QueueSection,
+        binding::setup_download_queue_factory,
+        row_commands::{refresh_model_item, send_cancel_command},
+    },
     progress::{
         DownloadCommand::{self, Cancel},
         DownloadEvent::{self, Completed, Failed, Progress, Started},
@@ -44,6 +51,14 @@ use crate::download::{
         DownloadTask, cancel_all_tasks,
     },
 };
+
+/// Queue header widgets for the download section.
+struct QueueHeader {
+    /// Group holding the queue header and stack.
+    group: PreferencesGroup,
+    /// Cancel-all action button.
+    cancel_button: Button,
+}
 
 /// Builds the download queue section (`PreferencesGroup` with header, empty/active
 /// states) and starts the event loop. Returns the section components for embedding
@@ -60,47 +75,22 @@ pub fn build_queue_section<S: BuildHasher + 'static, R: BuildHasher + 'static>(
     tasks: &Arc<Mutex<HashMap<u64, DownloadTask, S>>>,
     cancel_signals: &Arc<Mutex<HashMap<u64, Arc<AtomicBool>, R>>>,
 ) -> QueueSection {
-    let download_queue_group = PreferencesGroup::builder().build();
+    let queue_header = build_queue_header();
+    let download_queue_group = queue_header.group;
+    let cancel_all_button = queue_header.cancel_button;
 
-    let queue_header_box = Box::new(Horizontal, 12);
-
-    let queue_title_label = Label::builder()
-        .label("Download Queue")
-        .css_classes(["heading"])
-        .halign(Start)
+    let stack = Stack::builder()
+        .css_classes(["queue-stack"])
+        .tooltip_text("Download queue views")
         .build();
-
-    let queue_subtitle_label = Label::builder()
-        .label("Active downloads and queued items")
-        .css_classes(["dim-label"])
-        .halign(Start)
-        .build();
-
-    let header_content = Box::new(Vertical, 8);
-    header_content.append(&queue_title_label);
-    header_content.append(&queue_subtitle_label);
-    header_content.set_hexpand(true);
-    header_content.set_halign(Start);
-
-    let cancel_all_button = Button::builder()
-        .icon_name("process-stop-symbolic")
-        .tooltip_text("Cancel all downloads")
-        .css_classes(["flat"])
-        .sensitive(false)
-        .build();
-
-    queue_header_box.append(&header_content);
-    queue_header_box.append(&cancel_all_button);
-
-    download_queue_group.add(&queue_header_box);
-
-    let stack = Stack::new();
 
     let empty_page = StatusPage::builder()
         .icon_name("folder-download-symbolic")
         .title("No Active Downloads")
         .description("Your download queue is empty. Search for music to start downloading.")
         .vexpand(true)
+        .css_classes(["empty-queue-page"])
+        .tooltip_text("Empty download queue")
         .build();
 
     let empty_stack_page = stack.add_named(&empty_page, Some("empty"));
@@ -110,20 +100,25 @@ pub fn build_queue_section<S: BuildHasher + 'static, R: BuildHasher + 'static>(
     let tasks_for_factory = Arc::clone(tasks);
     let cmd_sender_rc = Arc::new(cmd_sender);
     let no_selection = NoSelection::new(Some(model.clone()));
-    let queue_list = ListView::new(
-        Some(no_selection),
-        Some(setup_download_queue_factory(
+    let queue_list = ListView::builder()
+        .model(&no_selection)
+        .factory(&setup_download_queue_factory(
             &cmd_sender_rc,
             &tasks_for_factory,
             &model,
-        )),
-    );
+        ))
+        .css_classes(["view", "queue-list"])
+        .tooltip_text("Download queue list")
+        .build();
 
     let scrolled = ScrolledWindow::builder()
         .vexpand(true)
+        .hscrollbar_policy(Automatic)
+        .vscrollbar_policy(Automatic)
         .child(&queue_list)
+        .css_classes(["frame", "queue-scrolled-window"])
+        .tooltip_text("Scrollable download queue")
         .build();
-    scrolled.set_policy(Automatic, Automatic);
 
     let content_stack_page = stack.add_named(&scrolled, Some("content"));
     for _ in [black_box(content_stack_page)] {}
@@ -157,6 +152,7 @@ pub fn build_queue_section<S: BuildHasher + 'static, R: BuildHasher + 'static>(
         spawn_download_event_loop(evt_receiver, model, stack, tasks_owned);
     }
 
+    download_queue_group.update_property(&[PropertyLabel("Download queue section")]);
     QueueSection {
         group: download_queue_group,
     }
@@ -222,12 +218,6 @@ fn setup_cancel_all<S: BuildHasher + 'static, R: BuildHasher + 'static>(
 }
 
 /// Sends a cancel command via the sender, logging failures.
-pub fn send_cancel_command(cmd_sender: &Arc<Sender<DownloadCommand>>, cmd: DownloadCommand) {
-    if let Err(e) = cmd_sender.try_send(cmd) {
-        error!(error = %e, "Failed to send cancel command");
-    }
-}
-
 /// Handles a download event and updates the model.
 fn handle_event<S: BuildHasher>(
     event: &DownloadEvent,
@@ -292,40 +282,63 @@ fn handle_event<S: BuildHasher>(
     }
 }
 
-/// Refreshes a specific item in the model by finding its position and splicing.
-pub fn refresh_model_item<S: BuildHasher>(
-    model: &ListStore,
-    id: u64,
-    tasks: &Arc<Mutex<HashMap<u64, DownloadTask, S>>>,
-) {
-    let n = model.n_items();
-    for i in 0..n {
-        let Some(obj) = model.item(i) else {
-            continue;
-        };
-        let Ok(boxed) = obj.downcast::<BoxedAnyObject>() else {
-            continue;
-        };
-        let model_id = {
-            let data = boxed.borrow::<DownloadRowData>();
-            data.task.id
-        };
-        if model_id != id {
-            continue;
-        }
-        let map = tasks.lock();
-        let task_clone = map.get(&id).cloned();
-        drop(map);
-        let Some(task) = task_clone else { break };
-        let data = boxed.borrow::<DownloadRowData>();
-        let cached_texture = data.texture.clone();
-        drop(data);
-        let new_row = DownloadRowData {
-            task,
-            texture: cached_texture,
-        };
-        let new_boxed = BoxedAnyObject::new(new_row);
-        model.splice(i, 1, &[new_boxed]);
-        break;
+/// Builds the download queue header with title and cancel-all button.
+///
+/// # Returns
+///
+/// Queue header widgets.
+fn build_queue_header() -> QueueHeader {
+    let download_queue_group = PreferencesGroup::builder()
+        .css_classes(["download-queue-group"])
+        .tooltip_text("Download queue")
+        .build();
+    download_queue_group.update_property(&[PropertyLabel("Download queue")]);
+
+    let queue_header_box = Box::builder()
+        .orientation(Horizontal)
+        .spacing(12)
+        .css_classes(["queue-header"])
+        .tooltip_text("Queue header")
+        .build();
+
+    let queue_title_label = Label::builder()
+        .label("Download Queue")
+        .css_classes(["heading"])
+        .tooltip_text("Download queue title")
+        .halign(Start)
+        .build();
+
+    let queue_subtitle_label = Label::builder()
+        .label("Active downloads and queued items")
+        .css_classes(["dim-label"])
+        .tooltip_text("Queue description")
+        .halign(Start)
+        .build();
+
+    let header_content = Box::builder()
+        .orientation(Vertical)
+        .spacing(8)
+        .hexpand(true)
+        .halign(Start)
+        .css_classes(["queue-header-content"])
+        .tooltip_text("Queue summary")
+        .build();
+    header_content.append(&queue_title_label);
+    header_content.append(&queue_subtitle_label);
+
+    let cancel_all_button = Button::builder()
+        .icon_name("process-stop-symbolic")
+        .tooltip_text("Cancel all downloads")
+        .css_classes(["flat", "image-button"])
+        .sensitive(false)
+        .build();
+
+    queue_header_box.append(&header_content);
+    queue_header_box.append(&cancel_all_button);
+
+    download_queue_group.add(&queue_header_box);
+    QueueHeader {
+        group: download_queue_group,
+        cancel_button: cancel_all_button,
     }
 }

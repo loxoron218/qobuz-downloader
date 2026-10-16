@@ -22,7 +22,7 @@ use {
 };
 
 use crate::{
-    app::AppError::{self, Api, Download},
+    app_error::AppError::{self, Api, Download},
     audio_quality::Quality,
     download::{
         destination::album_output_dir,

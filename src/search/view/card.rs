@@ -11,9 +11,10 @@ use {
             Box, Button, Image, Label, ListBoxRow,
             Orientation::{Horizontal, Vertical},
             Picture, Popover,
+            accessible::Property::Label as PropertyLabel,
             pango::EllipsizeMode::End as EllipsizeEnd,
         },
-        prelude::{BoxExt, ButtonExt, ListBoxRowExt, PopoverExt, WidgetExt},
+        prelude::{AccessibleExtManual, BoxExt, ButtonExt, PopoverExt},
     },
     parking_lot::Mutex,
     tracing::warn,
@@ -32,59 +33,10 @@ use crate::{
             self, Album as ResultAlbum, Artist as ResultArtist, Playlist as ResultPlaylist,
             Track as ResultTrack,
         },
+        card_text::build_subtitle,
         thumbnails::{AsyncCoverFetch, attach_cover_art},
     },
 };
-
-/// Pushes formatted duration and quality string parts if non-empty.
-fn push_quality_parts(parts: &mut Vec<String>, duration: i32, bit_depth: i32, sampling_rate: f64) {
-    if duration > 0 {
-        parts.push(format_duration(duration));
-    }
-    let q = quality_string(bit_depth, sampling_rate);
-    if !q.is_empty() {
-        parts.push(q);
-    }
-}
-
-/// Formats a subtitle string for a search result item.
-fn build_subtitle(item: &SearchResultItem) -> String {
-    match item {
-        ResultTrack {
-            artist,
-            album,
-            duration,
-            bit_depth,
-            sampling_rate,
-            ..
-        } => {
-            let mut parts = vec![artist.clone(), album.clone()];
-            push_quality_parts(&mut parts, *duration, *bit_depth, *sampling_rate);
-            parts.join(" • ")
-        }
-        ResultAlbum {
-            artist,
-            year,
-            track_count,
-            duration,
-            bit_depth,
-            sampling_rate,
-            ..
-        } => {
-            let mut parts = vec![artist.clone()];
-            if !year.is_empty() {
-                parts.push(year.clone());
-            }
-            if *track_count > 0 {
-                parts.push(format!("{track_count} tracks"));
-            }
-            push_quality_parts(&mut parts, *duration, *bit_depth, *sampling_rate);
-            parts.join(" • ")
-        }
-        ResultArtist { .. } => String::from("Artist"),
-        ResultPlaylist { .. } => String::from("Playlist"),
-    }
-}
 
 /// Creates a data row for a search result item.
 ///
@@ -95,16 +47,23 @@ pub fn create_data_row(
     item: &SearchResultItem,
     ctx: &SearchCtx,
 ) -> (ListBoxRow, Option<AsyncCoverFetch>) {
-    let picture = Picture::new();
-    picture.set_size_request(64, 64);
-    picture.add_css_class("thumbnail");
-    picture.set_tooltip_text(Some("Cover art"));
+    let picture = Picture::builder()
+        .width_request(64)
+        .height_request(64)
+        .css_classes(["thumbnail"])
+        .tooltip_text("Cover art")
+        .build();
 
-    let row_box = Box::new(Horizontal, 16);
-    row_box.set_margin_top(12);
-    row_box.set_margin_bottom(12);
-    row_box.set_margin_start(16);
-    row_box.set_margin_end(16);
+    let row_box = Box::builder()
+        .orientation(Horizontal)
+        .spacing(16)
+        .margin_top(12)
+        .margin_bottom(12)
+        .margin_start(16)
+        .margin_end(16)
+        .css_classes(["search-row"])
+        .tooltip_text("Search result")
+        .build();
 
     row_box.append(&picture);
     row_box.append(&build_info_box(item));
@@ -128,17 +87,26 @@ pub fn create_data_row(
         _ => None,
     };
 
-    let row = ListBoxRow::new();
-    row.set_child(Some(&row_box));
+    let row = ListBoxRow::builder()
+        .child(&row_box)
+        .css_classes(["search-result-row"])
+        .tooltip_text("Search result row")
+        .build();
+    row.update_property(&[PropertyLabel("Search result row")]);
 
     (row, pending_fetch)
 }
 
 /// Builds the info box containing title and subtitle labels.
 fn build_info_box(item: &SearchResultItem) -> Box {
-    let info_box = Box::new(Vertical, 2);
-    info_box.set_hexpand(true);
-    info_box.set_valign(Center);
+    let info_box = Box::builder()
+        .orientation(Vertical)
+        .spacing(2)
+        .hexpand(true)
+        .valign(Center)
+        .css_classes(["search-info-box"])
+        .tooltip_text("Result details")
+        .build();
 
     let title = match item {
         ResultTrack { title, .. } | ResultAlbum { title, .. } => title.clone(),
@@ -146,18 +114,25 @@ fn build_info_box(item: &SearchResultItem) -> Box {
     };
     let subtitle = build_subtitle(item);
 
-    let title_label = Label::new(Some(&title));
-    title_label.set_xalign(0.0);
-    title_label.set_ellipsize(EllipsizeEnd);
-    title_label.add_css_class("title-4");
+    let title_label = Label::builder()
+        .label(&title)
+        .xalign(0.0)
+        .ellipsize(EllipsizeEnd)
+        .css_classes(["title-4"])
+        .tooltip_text("Result title")
+        .build();
 
-    let subtitle_label = Label::new(Some(&subtitle));
-    subtitle_label.set_xalign(0.0);
-    subtitle_label.set_ellipsize(EllipsizeEnd);
-    subtitle_label.add_css_class("dim-label");
+    let subtitle_label = Label::builder()
+        .label(&subtitle)
+        .xalign(0.0)
+        .ellipsize(EllipsizeEnd)
+        .css_classes(["dim-label"])
+        .tooltip_text("Result subtitle")
+        .build();
 
     info_box.append(&title_label);
     info_box.append(&subtitle_label);
+    info_box.update_property(&[PropertyLabel("Result details")]);
 
     info_box
 }
@@ -171,17 +146,24 @@ fn build_explicit_indicator(item: &SearchResultItem) -> Box {
         ResultArtist { .. } => false,
     };
 
-    let container = Box::new(Vertical, 0);
-    let label = Label::new(Some("E"));
-    label.set_halign(Center);
-    label.set_valign(Center);
-    label.set_visible(is_explicit);
-    label.set_tooltip_text(Some("Explicit Content"));
-    label.set_css_classes(&["error", "caption", "explicit-indicator"]);
+    let container = Box::builder()
+        .orientation(Vertical)
+        .halign(End)
+        .valign(Center)
+        .margin_start(4)
+        .css_classes(["explicit-container"])
+        .tooltip_text("Explicit content indicator")
+        .build();
+    let label = Label::builder()
+        .label("E")
+        .halign(Center)
+        .valign(Center)
+        .visible(is_explicit)
+        .css_classes(["error", "caption", "explicit-indicator"])
+        .tooltip_text("Explicit Content")
+        .build();
     container.append(&label);
-    container.set_halign(End);
-    container.set_valign(Center);
-    container.set_margin_start(4);
+    container.update_property(&[PropertyLabel("Explicit content indicator")]);
 
     container
 }
@@ -202,21 +184,27 @@ fn build_hires_indicator(item: &SearchResultItem) -> Box {
         _ => false,
     };
 
-    let container = Box::new(Vertical, 0);
+    let container = Box::builder()
+        .orientation(Vertical)
+        .halign(End)
+        .valign(Center)
+        .margin_start(8)
+        .css_classes(["hires-container"])
+        .tooltip_text("Hi-Res audio indicator")
+        .build();
+    container.update_property(&[PropertyLabel("Hi-Res audio indicator")]);
     let icon = Image::builder()
         .halign(Center)
         .valign(Center)
         .visible(is_hires)
         .tooltip_text("Hi-Res Audio")
+        .css_classes(["hires-icon"])
         .pixel_size(24)
         .build();
     if is_hires {
         icon.set_from_file(Some("./assets/hires.png"));
     }
     container.append(&icon);
-    container.set_halign(End);
-    container.set_valign(Center);
-    container.set_margin_start(8);
 
     container
 }
@@ -242,13 +230,22 @@ fn create_split_button(item: &SearchResultItem, ctx: &SearchCtx) -> SplitButton 
     let queue_button = Button::builder()
         .label("Add to queue")
         .halign(Start)
-        .css_classes(["model"])
+        .css_classes(["model", "text-button"])
+        .tooltip_text("Add to download queue")
         .build();
 
-    let popover_box = Box::new(Vertical, 0);
+    let popover_box = Box::builder()
+        .orientation(Vertical)
+        .css_classes(["queue-popover-box"])
+        .tooltip_text("Queue options")
+        .build();
     popover_box.append(&queue_button);
 
-    let popover = Popover::builder().child(&popover_box).build();
+    let popover = Popover::builder()
+        .child(&popover_box)
+        .css_classes(["queue-popover"])
+        .tooltip_text("Download options")
+        .build();
 
     let split_button = SplitButton::builder()
         .label("Download")
@@ -256,8 +253,9 @@ fn create_split_button(item: &SearchResultItem, ctx: &SearchCtx) -> SplitButton 
         .popover(&popover)
         .halign(End)
         .valign(Center)
-        .css_classes(["suggested-action"])
+        .css_classes(["suggested-action", "text-button"])
         .build();
+    split_button.update_property(&[PropertyLabel("Download split button")]);
 
     let download_item = match item {
         ResultTrack {
@@ -332,25 +330,4 @@ fn create_split_button(item: &SearchResultItem, ctx: &SearchCtx) -> SplitButton 
     }
 
     split_button
-}
-
-/// Formats a duration in seconds to `MM:SS` format.
-fn format_duration(seconds: i32) -> String {
-    let mins = seconds / 60;
-    let secs = seconds % 60;
-    format!("{mins}:{secs:02}")
-}
-
-/// Formats a quality string from bit depth and sampling rate.
-fn quality_string(bit_depth: i32, sampling_rate: f64) -> String {
-    if bit_depth > 0 && sampling_rate > 0.0 {
-        let rate_str = if sampling_rate.fract() == 0.0 {
-            format!("{sampling_rate:.0}")
-        } else {
-            format!("{sampling_rate:.1}")
-        };
-        format!("{bit_depth}-bit/{rate_str}kHz")
-    } else {
-        String::new()
-    }
 }

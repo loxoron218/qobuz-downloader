@@ -14,7 +14,7 @@ use {
         HeaderBar, NavigationView, Toast, ToastOverlay, ToolbarView,
         gdk::{Key, Texture},
         glib::{
-            MainContext,
+            MainContext, Object,
             Propagation::{self, Proceed, Stop},
         },
         gtk::{
@@ -23,8 +23,10 @@ use {
             PolicyType::Automatic,
             ScrolledWindow, SearchEntry,
             SelectionMode::Single,
+            StringList,
+            accessible::Property::Label as PropertyLabel,
         },
-        prelude::{BoxExt, EditableExt, WidgetExt},
+        prelude::{AccessibleExtManual, BoxExt, EditableExt},
     },
     parking_lot::Mutex,
 };
@@ -95,45 +97,78 @@ fn build_search_scaffold(
     ToastOverlay,
     HeaderBar,
 ) {
-    let toolbar = ToolbarView::new();
-    let header = HeaderBar::new();
-
-    let title_label = Label::new(Some("Search"));
-    title_label.add_css_class("title");
-    header.set_title_widget(Some(&title_label));
+    let title_label = Label::builder()
+        .label("Search")
+        .css_classes(["title"])
+        .tooltip_text("Search")
+        .build();
+    let header = HeaderBar::builder()
+        .title_widget(&title_label)
+        .css_classes(["search-header-bar"])
+        .tooltip_text("Search header")
+        .build();
+    let toolbar = ToolbarView::builder()
+        .css_classes(["search-toolbar"])
+        .tooltip_text("Search")
+        .build();
+    toolbar.update_property(&[PropertyLabel("Search")]);
     toolbar.add_top_bar(&header);
 
-    let toast_overlay = ToastOverlay::new();
+    let toast_overlay: ToastOverlay = Object::builder::<ToastOverlay>()
+        .property("css-classes", vec!["search-toast-overlay".to_string()])
+        .property("tooltip-text", "Notification overlay")
+        .build();
 
-    let scope_selector =
-        DropDown::from_strings(&["All", "Albums", "Tracks", "Artists", "Playlists"]);
-    scope_selector.set_selected(saved_scope);
+    let scope_model = StringList::new(&["All", "Albums", "Tracks", "Artists", "Playlists"]);
+    let scope_selector = DropDown::builder()
+        .model(&scope_model)
+        .selected(saved_scope)
+        .css_classes(["scope-selector"])
+        .tooltip_text("Select search scope")
+        .build();
 
     let search_entry = SearchEntry::builder()
         .placeholder_text("Search for albums or tracks...")
         .hexpand(true)
+        .css_classes(["search-entry"])
+        .tooltip_text("Type to search")
         .build();
 
-    let header_box = Box::new(Horizontal, 8);
-    header_box.set_margin_top(16);
-    header_box.set_margin_bottom(16);
-    header_box.set_margin_start(16);
-    header_box.set_margin_end(16);
+    let header_box = Box::builder()
+        .orientation(Horizontal)
+        .spacing(8)
+        .margin_top(16)
+        .margin_bottom(16)
+        .margin_start(16)
+        .margin_end(16)
+        .css_classes(["search-header-box"])
+        .tooltip_text("Search controls")
+        .build();
     header_box.append(&scope_selector);
     header_box.append(&search_entry);
 
-    let list_box = ListBox::new();
-    list_box.set_selection_mode(Single);
-    list_box.set_vexpand(true);
-    list_box.add_css_class("rich-list");
+    let list_box = ListBox::builder()
+        .selection_mode(Single)
+        .vexpand(true)
+        .css_classes(["rich-list", "view"])
+        .tooltip_text("Search results")
+        .build();
 
-    let results_scrolled = ScrolledWindow::new();
-    results_scrolled.set_policy(Automatic, Automatic);
-    results_scrolled.set_min_content_height(400);
-    results_scrolled.set_vexpand(true);
-    results_scrolled.set_child(Some(&list_box));
+    let results_scrolled = ScrolledWindow::builder()
+        .hscrollbar_policy(Automatic)
+        .vscrollbar_policy(Automatic)
+        .min_content_height(400)
+        .vexpand(true)
+        .child(&list_box)
+        .css_classes(["frame", "results-scrolled-window"])
+        .tooltip_text("Scrollable search results")
+        .build();
 
-    let content_box = Box::new(Vertical, 0);
+    let content_box = Box::builder()
+        .orientation(Vertical)
+        .css_classes(["search-content"])
+        .tooltip_text("Search content")
+        .build();
     content_box.append(&header_box);
     content_box.append(&results_scrolled);
 
