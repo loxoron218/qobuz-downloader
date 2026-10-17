@@ -13,7 +13,7 @@ use {
         prelude::{AccessibleExtManual, BoxExt},
     },
     parking_lot::Mutex,
-    qobuz_api::api::content::playlists::Playlist,
+    qobuz_api::api::content::records::Playlist,
 };
 
 use crate::{

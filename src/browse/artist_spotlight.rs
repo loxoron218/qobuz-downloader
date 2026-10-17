@@ -20,8 +20,8 @@ use {
     },
     parking_lot::Mutex,
     qobuz_api::api::{
-        content::{albums::Album, artists::Artist},
-        service::QobuzApiService,
+        content::records::{Album, Artist},
+        service_types::QobuzApiService,
     },
 };
 

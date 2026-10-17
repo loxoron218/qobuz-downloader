@@ -16,7 +16,7 @@ use {
         },
         prelude::{AccessibleExtManual, BoxExt, TextureExt, WidgetExt},
     },
-    qobuz_api::api::content::albums::Image as ModelImage,
+    qobuz_api::api::content::record_media::Image as ModelImage,
     tracing::warn,
 };
 

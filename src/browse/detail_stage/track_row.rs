@@ -11,7 +11,7 @@ use {
         },
         prelude::{AccessibleExtManual, BoxExt},
     },
-    qobuz_api::api::content::tracks::Track,
+    qobuz_api::api::content::records::Track,
 };
 
 /// Formats duration in seconds to MM:SS.

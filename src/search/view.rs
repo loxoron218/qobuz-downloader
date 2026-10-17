@@ -33,7 +33,7 @@ use {
     },
     num_traits::AsPrimitive,
     parking_lot::Mutex,
-    qobuz_api::api::service::QobuzApiService,
+    qobuz_api::api::service_types::QobuzApiService,
 };
 
 use crate::{

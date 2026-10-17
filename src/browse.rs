@@ -12,8 +12,8 @@ use {
     libadwaita::gio::spawn_blocking,
     parking_lot::Mutex,
     qobuz_api::api::{
-        content::{albums::Album, artists::Artist, playlists::Playlist, tracks::Track},
-        service::QobuzApiService,
+        content::records::{Album, Artist, Playlist, Track},
+        service_types::QobuzApiService,
     },
     tracing::{error, info, warn},
 };

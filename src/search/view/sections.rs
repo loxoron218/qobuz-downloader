@@ -17,7 +17,7 @@ use {
         prelude::{AccessibleExtManual, BoxExt, WidgetExt},
     },
     parking_lot::Mutex,
-    qobuz_api::api::content::catalog::SearchResult,
+    qobuz_api::api::content::records::SearchResult,
 };
 
 use crate::{

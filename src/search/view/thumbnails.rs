@@ -11,7 +11,7 @@ use {
         prelude::{AccessibleExtManual, BoxExt, WidgetExt},
     },
     parking_lot::Mutex,
-    qobuz_api::api::service::QobuzApiService,
+    qobuz_api::api::service_types::QobuzApiService,
     tracing::warn,
 };
 

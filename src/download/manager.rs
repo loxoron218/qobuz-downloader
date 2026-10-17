@@ -14,7 +14,7 @@ use {
     async_channel::{Receiver, Sender, bounded, unbounded},
     libadwaita::gio::spawn_blocking,
     parking_lot::Mutex,
-    qobuz_api::api::service::QobuzApiService,
+    qobuz_api::api::service_types::QobuzApiService,
 };
 
 use crate::download::{

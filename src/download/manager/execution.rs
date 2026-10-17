@@ -15,7 +15,7 @@ use {
     async_channel::Sender,
     parking_lot::Mutex,
     qobuz_api::{
-        api::service::QobuzApiService, errors::QobuzApiError::Canceled,
+        api::service_types::QobuzApiService, errors::QobuzApiError::Canceled,
         metadata::config::MetadataConfig, sanitize::sanitize_filename,
     },
     tracing::{error, info},

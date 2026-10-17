@@ -23,7 +23,7 @@ use {
         glib::ExitCode,
         prelude::{ApplicationExt, ApplicationExtManual, GtkWindowExt},
     },
-    qobuz_api::api::service::QobuzApiService,
+    qobuz_api::api::service_types::QobuzApiService,
     tracing::{Level, error},
     tracing_subscriber::fmt,
 };
