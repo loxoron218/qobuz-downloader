@@ -253,7 +253,10 @@ pub fn next_id() -> u64 {
 /// # Arguments
 ///
 /// * `tasks` - The task map to update
-pub fn cancel_all_tasks<S: BuildHasher>(tasks: &Mutex<HashMap<u64, DownloadTask, S>>) {
+pub fn cancel_all_tasks<S>(tasks: &Mutex<HashMap<u64, DownloadTask, S>>)
+where
+    S: BuildHasher,
+{
     let mut map = tasks.lock();
     for task in map
         .values_mut()

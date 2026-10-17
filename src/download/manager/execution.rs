@@ -15,7 +15,7 @@ use {
     async_channel::Sender,
     parking_lot::Mutex,
     qobuz_api::{
-        api::service_types::QobuzApiService, errors::QobuzApiError::Canceled,
+        api::service_state::QobuzApiService, errors::QobuzApiError::Canceled,
         metadata::config::MetadataConfig, sanitize::sanitize_filename,
     },
     tracing::{error, info},
@@ -40,16 +40,16 @@ use crate::{
 /// Executes an enqueued download inline on the calling worker thread.
 ///
 /// Skips tasks already marked `Cancelled`.
-pub fn handle_enqueued_download<
-    S: BuildHasher + Send + Sync + 'static,
-    R: BuildHasher + Send + Sync + 'static,
->(
+pub fn handle_enqueued_download<S, R>(
     evt_sender: &Sender<DownloadEvent>,
     api_service: &Arc<Mutex<QobuzApiService>>,
     tasks: &Arc<Mutex<HashMap<u64, DownloadTask, S>>>,
     cancel_signals: &Arc<Mutex<HashMap<u64, Arc<AtomicBool>, R>>>,
     task: &DownloadTask,
-) {
+) where
+    S: BuildHasher + Send + Sync + 'static,
+    R: BuildHasher + Send + Sync + 'static,
+{
     let task_id = task.id;
 
     if tasks
@@ -121,12 +121,14 @@ fn send_event(evt_sender: &Sender<DownloadEvent>, event: DownloadEvent) {
 }
 
 /// Updates task state and sends the appropriate event for a completed/failed download.
-fn handle_download_result<S: BuildHasher>(
+fn handle_download_result<S>(
     evt_sender: &Sender<DownloadEvent>,
     tasks: &Arc<Mutex<HashMap<u64, DownloadTask, S>>>,
     task_id: u64,
     result: Result<PathBuf, AppError>,
-) {
+) where
+    S: BuildHasher,
+{
     match result {
         Ok(path) => {
             info!(id = task_id, path = %path.display(), "Download completed");
@@ -159,10 +161,10 @@ fn handle_download_result<S: BuildHasher>(
 }
 
 /// Marks a download task as failed in the tasks map, preserving Cancelled status.
-fn mark_download_failed<S: BuildHasher>(
-    tasks: &Arc<Mutex<HashMap<u64, DownloadTask, S>>>,
-    task_id: u64,
-) {
+fn mark_download_failed<S>(tasks: &Arc<Mutex<HashMap<u64, DownloadTask, S>>>, task_id: u64)
+where
+    S: BuildHasher,
+{
     let mut map = tasks.lock();
     if let Some(t) = map.get_mut(&task_id) {
         if t.status != Cancelled {
@@ -182,12 +184,15 @@ fn is_cancelled_error(err: &AppError) -> bool {
 }
 
 /// Handles a cancel command by setting the cancellation signal and marking the task as cancelled.
-pub fn handle_cancel<S: BuildHasher, R: BuildHasher>(
+pub fn handle_cancel<S, R>(
     evt_sender: &Sender<DownloadEvent>,
     tasks: &Arc<Mutex<HashMap<u64, DownloadTask, S>>>,
     cancel_signals: &Arc<Mutex<HashMap<u64, Arc<AtomicBool>, R>>>,
     id: u64,
-) {
+) where
+    S: BuildHasher,
+    R: BuildHasher,
+{
     info!(id = id, "Download cancelled");
 
     if let Some(flag) = cancel_signals.lock().get(&id) {
@@ -220,6 +225,10 @@ pub fn handle_cancel<S: BuildHasher, R: BuildHasher>(
 /// * `cancel` - Cancellation flag checked during download
 /// * `progress_callback` - Called after each item in batch downloads (`items_completed`,
 ///   `total_items`)
+///
+/// # Errors
+///
+/// Returns `AppError` if API metadata fetch, track download, or cancellation fails.
 fn execute_download<F>(
     api_service: &Arc<Mutex<QobuzApiService>>,
     item: &DownloadItem,
@@ -327,6 +336,10 @@ where
 /// * `output_dir` - Output directory for downloaded files
 /// * `cancel` - Cancellation flag checked between tracks
 /// * `progress_callback` - Called after each track download with (completed, total)
+///
+/// # Errors
+///
+/// Returns `AppError` if a track download is cancelled or no tracks were downloaded.
 fn download_album_tracks<F>(
     api: &mut QobuzApiService,
     track_ids: &[i32],

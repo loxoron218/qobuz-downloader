@@ -39,11 +39,13 @@ pub fn send_cancel_command(cmd_sender: &Arc<Sender<DownloadCommand>>, cmd: Downl
 /// * `model` - List model backing the queue view
 /// * `id` - Task identifier to refresh
 /// * `tasks` - Shared task map for fresh task data
-pub fn refresh_model_item<S: BuildHasher>(
+pub fn refresh_model_item<S>(
     model: &ListStore,
     id: u64,
     tasks: &Arc<Mutex<HashMap<u64, DownloadTask, S>>>,
-) {
+) where
+    S: BuildHasher,
+{
     let n = model.n_items();
     for i in 0..n {
         let Some(obj) = model.item(i) else {

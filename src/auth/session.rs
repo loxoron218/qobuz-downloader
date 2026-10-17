@@ -8,7 +8,7 @@ use {
         load, store,
     },
     parking_lot::Mutex,
-    qobuz_api::api::service_types::QobuzApiService,
+    qobuz_api::api::service_state::QobuzApiService,
     tracing::info,
 };
 
@@ -143,6 +143,10 @@ pub fn perform_keyring_login(
 /// # Returns
 ///
 /// The authenticated user ID on success.
+///
+/// # Errors
+///
+/// Returns `AppError` if API login with the stored credentials fails.
 fn authenticate_with_credentials(
     api_service: &Arc<Mutex<QobuzApiService>>,
     creds: &StoredCredentials,

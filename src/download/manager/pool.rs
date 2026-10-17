@@ -13,7 +13,7 @@ use std::{
 use {
     async_channel::{Receiver, Sender},
     parking_lot::Mutex,
-    qobuz_api::api::service_types::QobuzApiService,
+    qobuz_api::api::service_state::QobuzApiService,
     tracing::error,
 };
 
@@ -35,17 +35,17 @@ const WORKER_COUNT: usize = 3;
 ///
 /// Each worker processes one download at a time — the fixed worker count replaces an explicit
 /// semaphore, bounding concurrency and memory (no per-download OS thread spawn).
-pub fn run_download_worker<
-    S: BuildHasher + Send + Sync + 'static,
-    R: BuildHasher + Send + Sync + 'static,
->(
+pub fn run_download_worker<S, R>(
     cmd_sender: &Sender<DownloadCommand>,
     cmd_receiver: &Receiver<DownloadCommand>,
     evt_sender: &Sender<DownloadEvent>,
     api_service: &Arc<Mutex<QobuzApiService>>,
     tasks: &Arc<Mutex<HashMap<u64, DownloadTask, S>>>,
     cancel_signals: &Arc<Mutex<HashMap<u64, Arc<AtomicBool>, R>>>,
-) {
+) where
+    S: BuildHasher + Send + Sync + 'static,
+    R: BuildHasher + Send + Sync + 'static,
+{
     let shutdown = Arc::new(AtomicBool::new(false));
 
     scope(|s| {
@@ -65,14 +65,11 @@ pub fn run_download_worker<
 }
 
 /// Spawns a single worker thread on the given scope.
-fn spawn_single_worker<
-    'scope,
+fn spawn_single_worker<'scope, S, R>(s: &'scope Scope<'scope, '_>, ctx: &WorkerCtx<'_, S, R>)
+where
     S: BuildHasher + Send + Sync + 'static,
     R: BuildHasher + Send + Sync + 'static,
->(
-    s: &'scope Scope<'scope, '_>,
-    ctx: &WorkerCtx<'_, S, R>,
-) {
+{
     let cmd_sender = ctx.cmd_sender.clone();
     let cmd_receiver = ctx.cmd_receiver.clone();
     let evt_sender = ctx.evt_sender.clone();
@@ -116,9 +113,11 @@ fn handle_first_shutdown(shutdown: &AtomicBool, cmd_sender: &Sender<DownloadComm
 /// Single persistent worker: pulls commands from the channel and processes them inline.
 ///
 /// The worker count itself gates concurrency — no external semaphore needed.
-fn worker_loop<S: BuildHasher + Send + Sync + 'static, R: BuildHasher + Send + Sync + 'static>(
-    ctx: &WorkerCtx<'_, S, R>,
-) {
+fn worker_loop<S, R>(ctx: &WorkerCtx<'_, S, R>)
+where
+    S: BuildHasher + Send + Sync + 'static,
+    R: BuildHasher + Send + Sync + 'static,
+{
     while let Ok(cmd) = ctx.cmd_receiver.recv_blocking() {
         match cmd {
             Enqueue { task } => {

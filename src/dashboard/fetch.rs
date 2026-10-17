@@ -9,7 +9,7 @@ use {
         prelude::WidgetExt,
     },
     parking_lot::Mutex,
-    qobuz_api::api::service_types::QobuzApiService,
+    qobuz_api::api::service_state::QobuzApiService,
     tracing::{error, warn},
 };
 

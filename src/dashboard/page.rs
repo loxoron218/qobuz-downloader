@@ -105,13 +105,17 @@ fn save_current_settings(state: &AppState) {
 /// * `evt_receiver` - Channel receiver for download events
 /// * `tasks` - Shared task map from the download manager
 /// * `cancel_signals` - Shared cancel signals map for direct cancellation
-pub fn build<S: BuildHasher + 'static, R: BuildHasher + 'static>(
+pub fn build<S, R>(
     state: &AppState,
     cmd_sender: Sender<DownloadCommand>,
     evt_receiver: Receiver<DownloadEvent>,
     tasks: &Arc<Mutex<HashMap<u64, DownloadTask, S>>>,
     cancel_signals: &Arc<Mutex<HashMap<u64, Arc<AtomicBool>, R>>>,
-) -> DashboardWidgets {
+) -> DashboardWidgets
+where
+    S: BuildHasher + 'static,
+    R: BuildHasher + 'static,
+{
     let title_label = Label::builder()
         .label("Dashboard")
         .css_classes(["dashboard-title"])

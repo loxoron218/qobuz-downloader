@@ -69,12 +69,16 @@ struct QueueHeader {
 /// * `evt_receiver` - Receives download progress events
 /// * `cmd_sender` - Sends download commands
 /// * `tasks` - Shared tasks map
-pub fn build_queue_section<S: BuildHasher + 'static, R: BuildHasher + 'static>(
+pub fn build_queue_section<S, R>(
     evt_receiver: Receiver<DownloadEvent>,
     cmd_sender: Sender<DownloadCommand>,
     tasks: &Arc<Mutex<HashMap<u64, DownloadTask, S>>>,
     cancel_signals: &Arc<Mutex<HashMap<u64, Arc<AtomicBool>, R>>>,
-) -> QueueSection {
+) -> QueueSection
+where
+    S: BuildHasher + 'static,
+    R: BuildHasher + 'static,
+{
     let queue_header = build_queue_header();
     let download_queue_group = queue_header.group;
     let cancel_all_button = queue_header.cancel_button;
@@ -159,12 +163,14 @@ pub fn build_queue_section<S: BuildHasher + 'static, R: BuildHasher + 'static>(
 }
 
 /// Processes download events on the main loop and updates the queue model.
-fn spawn_download_event_loop<S: BuildHasher + 'static>(
+fn spawn_download_event_loop<S>(
     evt_receiver: Receiver<DownloadEvent>,
     model: ListStore,
     stack: Stack,
     tasks: Arc<Mutex<HashMap<u64, DownloadTask, S>>>,
-) {
+) where
+    S: BuildHasher + 'static,
+{
     drop(MainContext::default().spawn_local(async move {
         while let Ok(event) = evt_receiver.recv().await {
             handle_event(&event, &model, &stack, &tasks);
@@ -173,10 +179,10 @@ fn spawn_download_event_loop<S: BuildHasher + 'static>(
 }
 
 /// Sets cancel flags for all given task IDs.
-fn set_cancel_signals<S: BuildHasher>(
-    ids: &[u64],
-    cancel_signals: &Mutex<HashMap<u64, Arc<AtomicBool>, S>>,
-) {
+fn set_cancel_signals<S>(ids: &[u64], cancel_signals: &Mutex<HashMap<u64, Arc<AtomicBool>, S>>)
+where
+    S: BuildHasher,
+{
     let mut signals = cancel_signals.lock();
     for &id in ids {
         signals
@@ -187,14 +193,17 @@ fn set_cancel_signals<S: BuildHasher>(
 }
 
 /// Sets up the "Cancel All" button signal handler.
-fn setup_cancel_all<S: BuildHasher + 'static, R: BuildHasher + 'static>(
+fn setup_cancel_all<S, R>(
     button: &Button,
     tasks: Arc<Mutex<HashMap<u64, DownloadTask, S>>>,
     cmd_sender: Arc<Sender<DownloadCommand>>,
     cancel_signals: Arc<Mutex<HashMap<u64, Arc<AtomicBool>, R>>>,
     model: ListStore,
     stack: Stack,
-) {
+) where
+    S: BuildHasher + 'static,
+    R: BuildHasher + 'static,
+{
     let cancel_all_handler = button.connect_clicked(move |_| {
         let ids: Vec<u64> = {
             let map = tasks.lock();
@@ -219,12 +228,14 @@ fn setup_cancel_all<S: BuildHasher + 'static, R: BuildHasher + 'static>(
 
 /// Sends a cancel command via the sender, logging failures.
 /// Handles a download event and updates the model.
-fn handle_event<S: BuildHasher>(
+fn handle_event<S>(
     event: &DownloadEvent,
     model: &ListStore,
     stack: &Stack,
     tasks: &Arc<Mutex<HashMap<u64, DownloadTask, S>>>,
-) {
+) where
+    S: BuildHasher,
+{
     match event {
         Started { id } => {
             let map = tasks.lock();

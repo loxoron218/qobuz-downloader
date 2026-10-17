@@ -11,7 +11,7 @@ use {
         prelude::{AccessibleExtManual, BoxExt, WidgetExt},
     },
     parking_lot::Mutex,
-    qobuz_api::api::service_types::QobuzApiService,
+    qobuz_api::api::service_state::QobuzApiService,
     tracing::warn,
 };
 
@@ -267,7 +267,7 @@ fn fetch_playlist_cover_url(api_service: &Arc<Mutex<QobuzApiService>>, id: &str)
             return None;
         }
     };
-    let url = playlist.best_image_url(false);
+    let url: Option<String> = playlist.best_image_url(false);
     let result = url;
     drop(api);
     result

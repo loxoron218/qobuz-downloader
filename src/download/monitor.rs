@@ -41,7 +41,10 @@ struct RowContext<S: BuildHasher = RandomState> {
 }
 
 /// Returns an owned copy of a row context for use in a `move` closure.
-fn clone_row_context<S: BuildHasher>(ctx: &RowContext<S>) -> RowContext<S> {
+fn clone_row_context<S>(ctx: &RowContext<S>) -> RowContext<S>
+where
+    S: BuildHasher,
+{
     RowContext {
         cmd_sender: Arc::clone(&ctx.cmd_sender),
         tasks: Arc::clone(&ctx.tasks),

@@ -6,7 +6,7 @@ use std::{
 };
 
 use {
-    qobuz_api::api::content::stream::quality::{FLAC_16_44, FLAC_24_96, FLAC_24_192, MP3_320},
+    qobuz_api::api::content::quality::{FLAC_16_44, FLAC_24_96, FLAC_24_192, MP3_320},
     serde::{Deserialize, Serialize},
 };
 

@@ -14,7 +14,7 @@ use {
     libadwaita::gio::spawn_blocking,
     parking_lot::Mutex,
     qobuz_api::{
-        api::{content::records::SearchResult, service_types::QobuzApiService},
+        api::{content::records::SearchResult, service_state::QobuzApiService},
         errors::QobuzApiError,
     },
     tracing::{error, info},

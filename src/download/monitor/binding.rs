@@ -46,11 +46,14 @@ use crate::{
 };
 
 /// Sets up the `SignalListItemFactory` for download queue items.
-pub fn setup_download_queue_factory<S: BuildHasher + 'static>(
+pub fn setup_download_queue_factory<S>(
     cmd_sender: &Arc<Sender<DownloadCommand>>,
     tasks: &Arc<Mutex<HashMap<u64, DownloadTask, S>>>,
     model: &ListStore,
-) -> SignalListItemFactory {
+) -> SignalListItemFactory
+where
+    S: BuildHasher + 'static,
+{
     let factory = SignalListItemFactory::new();
     let ctx = RowContext {
         cmd_sender: Arc::clone(cmd_sender),
@@ -74,7 +77,10 @@ pub fn setup_download_queue_factory<S: BuildHasher + 'static>(
 }
 
 /// Creates the widget structure for a single download queue row and registers it.
-fn setup_download_row<S: BuildHasher + 'static>(list_item_obj: &Object, ctx: &RowContext<S>) {
+fn setup_download_row<S>(list_item_obj: &Object, ctx: &RowContext<S>)
+where
+    S: BuildHasher + 'static,
+{
     let Some(list_item) = list_item_obj.downcast_ref::<ListItem>() else {
         return;
     };
@@ -241,11 +247,10 @@ fn bind_download_row(list_item_obj: &Object) {
 
 /// Wires the cancel button to send a `Cancel` command and update the UI immediately.
 /// The task ID is read from the row's currently bound item.
-fn wire_cancel_button<S: BuildHasher + 'static>(
-    button: &Button,
-    list_item: &ListItem,
-    ctx: &RowContext<S>,
-) {
+fn wire_cancel_button<S>(button: &Button, list_item: &ListItem, ctx: &RowContext<S>)
+where
+    S: BuildHasher + 'static,
+{
     let ctx = clone_row_context(ctx);
     let list_item = list_item.clone();
 
@@ -266,7 +271,10 @@ fn wire_cancel_button<S: BuildHasher + 'static>(
 }
 
 /// Marks a task as cancelled in the tasks map.
-fn mark_task_cancelled<S: BuildHasher>(tasks: &Arc<Mutex<HashMap<u64, DownloadTask, S>>>, id: u64) {
+fn mark_task_cancelled<S>(tasks: &Arc<Mutex<HashMap<u64, DownloadTask, S>>>, id: u64)
+where
+    S: BuildHasher,
+{
     let mut map = tasks.lock();
     if let Some(t) = map.get_mut(&id) {
         t.status = Cancelled;

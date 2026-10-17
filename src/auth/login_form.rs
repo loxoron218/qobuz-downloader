@@ -21,8 +21,8 @@ use {
 use crate::{
     app::AppState,
     auth::{
+        login_flow::{handle_email_login, handle_token_login},
         login_form::LoginMethod::{EmailPassword, Token},
-        login_handlers::{handle_email_login, handle_token_login},
         session::AuthEvent,
     },
 };

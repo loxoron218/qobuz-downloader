@@ -13,7 +13,7 @@ use {
     parking_lot::Mutex,
     qobuz_api::api::{
         content::records::{Album, Artist, Playlist, Track},
-        service_types::QobuzApiService,
+        service_state::QobuzApiService,
     },
     tracing::{error, info, warn},
 };

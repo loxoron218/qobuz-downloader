@@ -35,11 +35,19 @@ pub enum StoredCredentials {
 }
 
 /// Creates a new Tokio runtime for synchronous keyring operations.
+///
+/// # Errors
+///
+/// Returns `AppError` if the Tokio runtime cannot be created.
 fn create_runtime() -> Result<Runtime, AppError> {
     Runtime::new().map_err(|e| Download(format!("Failed to create async runtime: {e}")))
 }
 
 /// Connects to the GNOME Keyring service.
+///
+/// # Errors
+///
+/// Returns `AppError::Keyring` if the keyring service cannot be reached.
 async fn connect_keyring() -> Result<Keyring, AppError> {
     Keyring::new().await.map_err(|e| KeyringError(Box::new(e)))
 }
