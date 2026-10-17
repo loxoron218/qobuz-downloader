@@ -356,5 +356,5 @@ pub fn build_action_button() -> Button {
   using `#[test]` (the macro runs the test on the main thread) instead of a dedicated `#[gtk::test]`
   attribute.
 - Integration/acceptance tests live in `tests/` and carry a `//!` header that references the
-  relevant spec/FR (e.g., `No-hardware-at-startup acceptance test (FR-030)`).
+  originating GitHub issue / `to-spec` spec (e.g., `No-hardware-at-startup acceptance test (#123)`).
 - Benchmarks live in `benches/` using `criterion`.
