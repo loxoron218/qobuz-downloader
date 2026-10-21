@@ -69,6 +69,7 @@ struct QueueHeader {
 /// * `evt_receiver` - Receives download progress events
 /// * `cmd_sender` - Sends download commands
 /// * `tasks` - Shared tasks map
+/// * `cancel_signals` - Shared cancel flags per task
 pub fn build_queue_section<S, R>(
     evt_receiver: Receiver<DownloadEvent>,
     cmd_sender: Sender<DownloadCommand>,

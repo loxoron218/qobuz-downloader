@@ -50,6 +50,8 @@ use crate::{
 /// * `albums` - Albums from the artist catalog
 /// * `settings` - Application settings (for download directory)
 /// * `cmd_sender` - Channel to enqueue downloads
+/// * `api_service` - Shared Qobuz API service
+/// * `browse_sender` - Channel to request browse navigation
 ///
 /// # Returns
 ///
