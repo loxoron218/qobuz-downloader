@@ -1,0 +1,7 @@
+# Baseline machine: AMD Ryzen 5 5500U (6C/12T), 7.09 GiB RAM.
+# Cap parallel rustc/codegen jobs: full parallelism (12) OOMs and freezes the
+# desktop during linking. Applies to every cargo invocation in this repo
+# (build, clippy, nextest build phase). Override per run:
+#   CARGO_BUILD_JOBS=<n> cargo <cmd>
+[build]
+jobs = 4

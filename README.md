@@ -241,7 +241,7 @@ cargo build --release
 
 ### Running Tests
 ```bash
-cargo test
+cargo nextest run
 ```
 
 ### Code Formatting

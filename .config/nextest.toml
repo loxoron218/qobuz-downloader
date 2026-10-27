@@ -1,0 +1,25 @@
+# Freeze-safe nextest defaults, tuned for the baseline machine:
+# AMD Ryzen 5 5500U (6C/12T), 7.09 GiB RAM.
+#
+# Why this exists: `cargo test` runs all test binaries in parallel with
+# unbounded threads, which OOMs/freezes this machine (parallel rustc linking
+# + parallel harnesses). Nextest bounds test execution per profile below;
+# `.cargo/config.toml` caps parallel rustc jobs for the build phase.
+#
+# Weaker machine? Override per run:
+#   cargo nextest run -j 2
+#   NEXTEST_TEST_THREADS=2 cargo nextest run
+[profile.default]
+fail-fast = false
+retries = 2
+slow-timeout = "60s"
+test-threads = 4
+
+# Heavy suites (audio hardware, sqlite, network, feature-gated verification):
+# e.g. `cargo nextest run --profile heavy --features verification-tests`.
+# Sequential-ish on purpose; retries off so slow suites fail loudly, not thrice.
+[profile.heavy]
+fail-fast = false
+retries = 0
+slow-timeout = "5m"
+test-threads = 2
