@@ -136,11 +136,11 @@ fn build_search_scaffold(
 
     let header_box = Box::builder()
         .orientation(Horizontal)
-        .spacing(8)
-        .margin_top(16)
-        .margin_bottom(16)
-        .margin_start(16)
-        .margin_end(16)
+        .spacing(6)
+        .margin_top(18)
+        .margin_bottom(18)
+        .margin_start(18)
+        .margin_end(18)
         .css_classes(["search-header-box"])
         .tooltip_text("Search controls")
         .build();

@@ -216,7 +216,7 @@ fn build_credential_stack() -> CredentialFields {
 
     let email_section = Box::builder()
         .orientation(Vertical)
-        .spacing(16)
+        .spacing(18)
         .css_classes(["login-section"])
         .tooltip_text("Email login section")
         .build();
@@ -245,7 +245,7 @@ fn build_credential_stack() -> CredentialFields {
 
     let token_section = Box::builder()
         .orientation(Vertical)
-        .spacing(16)
+        .spacing(18)
         .css_classes(["login-section"])
         .tooltip_text("Token login section")
         .build();

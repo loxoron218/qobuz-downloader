@@ -179,7 +179,7 @@ pub fn build_quality_dropdown() -> DropDown {
 pub fn build_quality_row(dropdown: &DropDown, valign_center: bool) -> Box {
     let quality_row = Box::builder()
         .orientation(Horizontal)
-        .spacing(8)
+        .spacing(6)
         .css_classes(["quality-row"])
         .tooltip_text("Download quality options")
         .build();
@@ -245,7 +245,7 @@ pub fn build_item_section(header_text: &str, spacing: i32) -> (Label, Box) {
     let container = Box::builder()
         .orientation(Vertical)
         .spacing(spacing)
-        .margin_top(4)
+        .margin_top(6)
         .css_classes(["item-section"])
         .tooltip_text("Item list")
         .build();

@@ -43,9 +43,9 @@ pub fn format_duration(seconds: i32) -> String {
 pub fn build_track_row(track: &Track) -> Box {
     let row = Box::builder()
         .orientation(Horizontal)
-        .spacing(8)
-        .margin_top(4)
-        .margin_bottom(4)
+        .spacing(6)
+        .margin_top(6)
+        .margin_bottom(6)
         .css_classes(["track-row"])
         .tooltip_text("Track row")
         .build();
@@ -101,7 +101,7 @@ pub fn build_track_row(track: &Track) -> Box {
             .tooltip_text("Hi-Res Audio")
             .css_classes(["hires-icon"])
             .pixel_size(16)
-            .margin_start(8)
+            .margin_start(6)
             .build();
         hires_icon.set_from_file(Some("./assets/hires.png"));
         row.append(&hires_icon);

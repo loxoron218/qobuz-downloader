@@ -101,7 +101,7 @@ pub fn handle_enqueued_download<S, R>(
             &task.item,
             task.quality,
             task.output_dir.as_path(),
-            Arc::clone(&cancel_flag),
+            cancel_flag,
             progress_callback,
         )
     };

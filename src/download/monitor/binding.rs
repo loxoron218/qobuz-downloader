@@ -87,11 +87,11 @@ where
 
     let main_box = Box::builder()
         .orientation(Horizontal)
-        .spacing(16)
-        .margin_top(8)
-        .margin_bottom(8)
-        .margin_start(16)
-        .margin_end(16)
+        .spacing(18)
+        .margin_top(6)
+        .margin_bottom(6)
+        .margin_start(18)
+        .margin_end(18)
         .css_classes(["download-row"])
         .tooltip_text("Download queue row")
         .build();
@@ -107,7 +107,7 @@ where
 
     let metadata_box = Box::builder()
         .orientation(Vertical)
-        .spacing(4)
+        .spacing(6)
         .hexpand(true)
         .valign(Center)
         .css_classes(["download-metadata"])
@@ -150,7 +150,7 @@ where
 
     let progress_container = Box::builder()
         .orientation(Vertical)
-        .spacing(4)
+        .spacing(6)
         .hexpand(true)
         .valign(Center)
         .css_classes(["download-progress-container"])

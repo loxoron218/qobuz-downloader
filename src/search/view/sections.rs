@@ -227,8 +227,8 @@ fn show_empty_search_state(list_box: &ListBox, query: &str) {
         .tooltip_text("No search results")
         .halign(Start)
         .margin_top(24)
-        .margin_start(16)
-        .margin_end(16)
+        .margin_start(18)
+        .margin_end(18)
         .wrap(true)
         .build();
     empty_label.update_property(&[PropertyLabel("No search results")]);

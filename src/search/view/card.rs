@@ -56,11 +56,11 @@ pub fn create_data_row(
 
     let row_box = Box::builder()
         .orientation(Horizontal)
-        .spacing(16)
+        .spacing(18)
         .margin_top(12)
         .margin_bottom(12)
-        .margin_start(16)
-        .margin_end(16)
+        .margin_start(18)
+        .margin_end(18)
         .css_classes(["search-row"])
         .tooltip_text("Search result")
         .build();
@@ -101,7 +101,7 @@ pub fn create_data_row(
 fn build_info_box(item: &SearchResultItem) -> Box {
     let info_box = Box::builder()
         .orientation(Vertical)
-        .spacing(2)
+        .spacing(6)
         .hexpand(true)
         .valign(Center)
         .css_classes(["search-info-box"])
@@ -150,7 +150,7 @@ fn build_explicit_indicator(item: &SearchResultItem) -> Box {
         .orientation(Vertical)
         .halign(End)
         .valign(Center)
-        .margin_start(4)
+        .margin_start(6)
         .css_classes(["explicit-container"])
         .tooltip_text("Explicit content indicator")
         .build();
@@ -188,7 +188,7 @@ fn build_hires_indicator(item: &SearchResultItem) -> Box {
         .orientation(Vertical)
         .halign(End)
         .valign(Center)
-        .margin_start(8)
+        .margin_start(6)
         .css_classes(["hires-container"])
         .tooltip_text("Hi-Res audio indicator")
         .build();

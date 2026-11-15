@@ -1,6 +1,10 @@
 //! Preferences editor UI.
 
-use std::{hint::black_box, path::PathBuf, sync::Arc};
+use std::{
+    hint::black_box,
+    path::PathBuf,
+    sync::{Arc, Weak},
+};
 
 use {
     libadwaita::{
@@ -64,9 +68,12 @@ fn connect_folder_picker(
     browse_button: &Button,
 ) {
     let window = window.clone();
-    let selected_dir = Arc::clone(selected_dir);
+    let selected_weak: Weak<Mutex<PathBuf>> = Arc::downgrade(selected_dir);
     let dir_row = directory_row.clone();
     let browse_clicked = browse_button.connect_clicked(move |_| {
+        let Some(selected_dir) = selected_weak.upgrade() else {
+            return;
+        };
         let file_dialog = FileDialog::new();
         file_dialog.set_title("Select Download Directory");
 
@@ -76,7 +83,6 @@ fn connect_folder_picker(
         }
 
         let dir_row = dir_row.clone();
-        let selected_dir = Arc::clone(&selected_dir);
         file_dialog.select_folder(Some(&window), Option::<&Cancellable>::None, move |result| {
             on_folder_selected(&selected_dir, &dir_row, result);
         });
@@ -187,7 +193,6 @@ pub fn build(
     dialog.add(&download_page);
 
     {
-        let selected_dir = Arc::clone(&selected_dir);
         let quality_row = quality_row;
         let state = state.clone();
 

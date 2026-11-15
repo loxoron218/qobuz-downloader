@@ -148,7 +148,7 @@ where
         setup_cancel_all(
             &cancel_all_button,
             Arc::clone(&tasks_owned),
-            Arc::clone(&cmd_sender_rc),
+            cmd_sender_rc,
             cancel_signals,
             model.clone(),
             stack.clone(),
@@ -329,7 +329,7 @@ fn build_queue_header() -> QueueHeader {
 
     let header_content = Box::builder()
         .orientation(Vertical)
-        .spacing(8)
+        .spacing(6)
         .hexpand(true)
         .halign(Start)
         .css_classes(["queue-header-content"])

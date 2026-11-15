@@ -114,7 +114,7 @@ pub fn build(
 fn build_artist_info_section(artist: &Artist) -> Box {
     let section = Box::builder()
         .orientation(Vertical)
-        .spacing(8)
+        .spacing(6)
         .css_classes(["artist-info-section"])
         .tooltip_text("Artist information")
         .build();
@@ -164,9 +164,9 @@ fn build_artist_info_section(artist: &Artist) -> Box {
 fn build_album_row(album: &Album) -> Box {
     let row = Box::builder()
         .orientation(Horizontal)
-        .spacing(8)
-        .margin_top(4)
-        .margin_bottom(4)
+        .spacing(6)
+        .margin_top(6)
+        .margin_bottom(6)
         .css_classes(["album-row"])
         .tooltip_text("Album row")
         .build();
@@ -187,7 +187,7 @@ fn build_album_row(album: &Album) -> Box {
 
     let info_box = Box::builder()
         .orientation(Vertical)
-        .spacing(2)
+        .spacing(6)
         .hexpand(true)
         .valign(Start)
         .css_classes(["album-row-info"])
